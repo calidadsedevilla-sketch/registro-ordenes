@@ -1,0 +1,20 @@
+{
+  "name": "OCR – Órdenes de Venta",
+  "short_name": "OCR OV",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0e141b",
+  "theme_color": "#0e141b",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
