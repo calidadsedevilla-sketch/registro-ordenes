@@ -59,48 +59,52 @@ btnProcess.addEventListener('click',async()=>{
 
 function parse(text){
  const clean = text
-  .replace(/[|()\[\]]/g,' ')
-  .replace(/[^\wáéíóúñü\s]/gi,' ')
-  .replace(/\s{2,}/g,' ')
-  .toUpperCase();
+  .toUpperCase()
+  .replace(/[^\wÁÉÍÓÚÑÜ\s]/g,' ')
+  .replace(/\s{2,}/g,' ');
 
  const lines = clean.split("\n").map(s=>s.trim()).filter(Boolean);
- let out = [];
+
+ let out=[];
 
  for (let line of lines){
 
   if(!/ARROZ/.test(line)) continue;
   if(!/KG/.test(line)) continue;
 
-  // remover codigos tipo PRO#####
-  line = line.replace(/P[R]?D?\d{4,6}/g,'');
+  line = line
+    .replace(/P[R]?[D]?\d{4,6}/g,'')
+    .replace(/\bEUA\b|\bPERU\b|\bUND\b/g,'')
+    .replace(/PILADO|PLADO|PLAGO/g,"PILADO")
+    .replace(/ARROZPILADO/g,"ARROZ PILADO")
+    .replace(/EXTRAGRAN/g,"EXTRA GRAN")
+    .replace(/ANEJO|ANEIO|A[E|I]JO/g,"ANEJO")
+    .replace(/CHAL[A|Á]N|CHAIAN|CHA LAN/g,"CHALAN")
+    .replace(/\sX(?=\d)/," X ")
+    .replace(/\s{2,}/g,' ')
+    .trim();
 
-  // correcciones comunes
-  line = line.replace(/PILAGO|PLADO/g,"PILADO")
-             .replace(/ANEJO|ANEIO|EJO/g,"ANEJO")
-             .replace(/CHAL[A|Á]N|CHAIAN/g,"CHALAN")
-             .replace(/X(?=\d)/g," X ") // separa X10KG
-             .replace(/\s{2,}/g," ").trim();
+  const matches = line.match(/\d{1,3}/g);
+  if(!matches) continue;
 
-  // detectar cantidad = ultimo entero de la linea
-  const nums = line.match(/\d{1,3}/g);
-  if(!nums) continue;
-  const cant = parseInt(nums[nums.length-1]);
-  if(isNaN(cant) || cant>300) continue; // evitar precios
+  const cant = parseInt(matches[matches.length-1]);
+  if(isNaN(cant) || cant>300) continue;
 
-  // quitar cantidad de la descripcion
-  const desc = line.replace(new RegExp(cant+'$'),"").trim();
+  let desc = line.replace(new RegExp(cant+'$'),"").trim();
+
+  // remover números al inicio ej: "6 ARROZ ..."
+  desc = desc.replace(/^\d+\s+/,'').trim();
 
   out.push({
    num: out.length+1,
    desc,
    cant
   });
-
  }
 
  return out;
 }
+
 
 function render(data){
  resultsEl.innerHTML="";
