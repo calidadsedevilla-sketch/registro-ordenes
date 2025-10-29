@@ -15,3 +15,4 @@ App web para extraer N°, Descripción y Cantidad desde fotos (Tesseract.js).
 - Permitir cámara.
 - Tomar foto → Procesar OCR.
 - Exportar a JSON/CSV.
+Actualizado a Smart OCR v4.1 – Forzar rebuild
