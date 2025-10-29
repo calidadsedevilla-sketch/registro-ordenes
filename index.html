@@ -58,35 +58,47 @@ btnProcess.addEventListener('click',async()=>{
 });
 
 function parse(text){
- const clean=text.replace(/[^\wáéíóúñü\s]/gi,' ').replace(/\s{2,}/g,' ');
- const lines=clean.split("\n").map(s=>s.trim()).filter(s=>s);
+ const clean = text
+  .replace(/[|()\[\]]/g,' ')
+  .replace(/[^\wáéíóúñü\s]/gi,' ')
+  .replace(/\s{2,}/g,' ')
+  .toUpperCase();
 
- let out=[];
- for(let line of lines){
-  if(!/ARROZ/i.test(line)) continue;
-  if(!/KG/i.test(line)) continue;
+ const lines = clean.split("\n").map(s=>s.trim()).filter(Boolean);
+ let out = [];
 
-  let desc=line;
+ for (let line of lines){
 
-  desc=desc.replace(/ARR|ARRO|ARRE/g,"ARROZ")
-           .replace(/PLADO|PLAGO/g,"PILADO")
-           .replace(/AR[E|I]JO/g,"ANEJO")
-           .replace(/CHAL[A|Á]N|CHAIAN/g,"CHALAN")
-           .replace(/X/g," X ");
+  if(!/ARROZ/.test(line)) continue;
+  if(!/KG/.test(line)) continue;
 
-  const numMatch=line.match(/(\d{1,3})\s*$/);
-  if(!numMatch) continue;
-  const cant=parseInt(numMatch[1]);
-  if(isNaN(cant)) continue;
+  // remover codigos tipo PRO#####
+  line = line.replace(/P[R]?D?\d{4,6}/g,'');
 
-  desc=desc.replace(/\d{1,3}\s*$/,"").trim();
+  // correcciones comunes
+  line = line.replace(/PILAGO|PLADO/g,"PILADO")
+             .replace(/ANEJO|ANEIO|EJO/g,"ANEJO")
+             .replace(/CHAL[A|Á]N|CHAIAN/g,"CHALAN")
+             .replace(/X(?=\d)/g," X ") // separa X10KG
+             .replace(/\s{2,}/g," ").trim();
+
+  // detectar cantidad = ultimo entero de la linea
+  const nums = line.match(/\d{1,3}/g);
+  if(!nums) continue;
+  const cant = parseInt(nums[nums.length-1]);
+  if(isNaN(cant) || cant>300) continue; // evitar precios
+
+  // quitar cantidad de la descripcion
+  const desc = line.replace(new RegExp(cant+'$'),"").trim();
 
   out.push({
    num: out.length+1,
    desc,
    cant
   });
+
  }
+
  return out;
 }
 
