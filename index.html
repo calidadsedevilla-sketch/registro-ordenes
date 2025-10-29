@@ -16,7 +16,7 @@ canvas{max-width:100%;background:#000;border-radius:10px;margin:8px 0}
 </head>
 <body>
 <h2>OCR – Calidad Sede Villa</h2>
-<p>Solo extrae N°, Descripción y Cantidad.</p>
+<p>Extrae N°, Descripción y Cantidad (solo productos de ARROZ).</p>
 
 <input id="file" type="file" accept="image/*" capture="environment" style="display:none"/>
 <button onclick="document.getElementById('file').click()">📷 Tomar foto</button>
@@ -58,31 +58,34 @@ btnProcess.addEventListener('click',async()=>{
 });
 
 function parse(text){
- const lines=text.split("\\n").map(s=>s.trim()).filter(Boolean);
- const out=[];
- for(const line of lines){
-  const parts=line.match(/\\d+|[A-Za-zÁÉÍÓÚÑÜáéíóúñü’'°xX./\\-]+/g);
-  if(!parts) continue;
+ const clean=text.replace(/[^\wáéíóúñü\s]/gi,' ').replace(/\s{2,}/g,' ');
+ const lines=clean.split("\n").map(s=>s.trim()).filter(s=>s);
 
-  const nums=parts.filter(x=>/^\\d+$/.test(x));
-  if(nums.length<2) continue;
+ let out=[];
+ for(let line of lines){
+  if(!/ARROZ/i.test(line)) continue;
+  if(!/KG/i.test(line)) continue;
 
-  const num=parseInt(nums[0]);
-  const cant=parseInt(nums[nums.length-1]);
-  if(isNaN(num)||isNaN(cant)) continue;
+  let desc=line;
 
-  const first=parts.indexOf(nums[0]);
-  const last=parts.lastIndexOf(nums[nums.length-1]);
-  let desc=parts.slice(first+1,last).join(" ");
+  desc=desc.replace(/ARR|ARRO|ARRE/g,"ARROZ")
+           .replace(/PLADO|PLAGO/g,"PILADO")
+           .replace(/AR[E|I]JO/g,"ANEJO")
+           .replace(/CHAL[A|Á]N|CHAIAN/g,"CHALAN")
+           .replace(/X/g," X ");
 
-  desc=desc
-   .replace(/^PRD\\d+/i,"")
-   .replace(/(SACOS?|BLS|UND|CJ|KG)/gi,"")
-   .replace(/[0-9]{2}\\.[0-9]{3}/g,"")
-   .trim();
+  const numMatch=line.match(/(\d{1,3})\s*$/);
+  if(!numMatch) continue;
+  const cant=parseInt(numMatch[1]);
+  if(isNaN(cant)) continue;
 
-  if(desc.length<2) continue;
-  out.push({num,desc,cant});
+  desc=desc.replace(/\d{1,3}\s*$/,"").trim();
+
+  out.push({
+   num: out.length+1,
+   desc,
+   cant
+  });
  }
  return out;
 }
