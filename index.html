@@ -18,7 +18,12 @@ button.ok{background:var(--ok);color:#05240e;border-color:#0b7a3a}.badge{font-si
 .hint{font-size:12px;color:var(--muted)}h1{margin:6px 2px;font-size:20px}.sub{color:var(--muted);font-size:13px;margin-bottom:10px}
 </style></head><body>
 <header><div class="wrap"><h1>OCR – Órdenes de Venta (Smart v4.2 · AutoAlign)</h1>
-<div class="sub">Columnas <b>N°</b>, <b>Descripción</b>, <b>Cant.</b> con OpenCV.js + Tesseract.js (spa). Autocorrección de perspectiva y reintento.</div></div></header>
+<div class="oculto">Columnas N°, <b>Descripción</b>, <b>Cant.</b> con OpenCV.js + Tesseract.js (spa). Autocorrección de perspectiva y reintento.</p>
+
+<style>
+.oculto { display:none !important; }
+</style>
+
 <main class="wrap grid"><section class="card">
 <div style="display:flex;gap:10px;flex-wrap:wrap">
 <label for="file" class="ok" style="display:inline-block">📷 Tomar foto / Subir imagen</label>
@@ -55,35 +60,56 @@ btnConfirm.onclick=()=>{ if(!tableMask){alert('Aún no se han recortado columnas
 btnOCR.onclick=async ()=>{ if(!Object.keys(colCrops).length){alert('Primero detecta la tabla y confirma las columnas.');return;} resultsEl.innerHTML='<div class="badge">Procesando OCR…</div>'; const data=await ocrColumns(colCrops); renderResults(data);};
 function drawToCanvas(b){const maxW=1500, s=Math.min(1,maxW/b.width); canvas.width=Math.round(b.width*s); canvas.height=Math.round(b.height*s); ctx.drawImage(b,0,0,canvas.width,canvas.height);}
 function cvReady(){console.log('OpenCV listo')} function cvFail(){console.warn('OpenCV no cargó')}
-function detectAndCut(){
-  const src=cv.imread(canvas); let gray=new cv.Mat(); cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
-  let blur=new cv.Mat(); cv.bilateralFilter(gray,blur,9,75,75);
-  let bw=new cv.Mat(); cv.adaptiveThreshold(blur,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,21,8);
-  let contours=new cv.MatVector(), hierarchy=new cv.Mat(); cv.findContours(bw,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
-  let tableQuad=null, areaMax=0;
-  for(let i=0;i<contours.size();i++){const cnt=contours.get(i);const area=cv.contourArea(cnt); if(area<src.rows*src.cols*0.1)continue; const peri=cv.arcLength(cnt,true); const approx=new cv.Mat(); cv.approxPolyDP(cnt,approx,0.02*peri,true); if(approx.rows===4 && area>areaMax){areaMax=area; tableQuad=approx.clone();} cnt.delete();}
-  if(!tableQuad){
-    const cx=Math.floor(src.cols*0.1), cy=Math.floor(src.rows*0.1); const roi=src.roi(new cv.Rect(cx,cy,Math.floor(src.cols*0.8),Math.floor(src.rows*0.8)));
-    cv.cvtColor(roi,gray,cv.COLOR_RGBA2GRAY); cv.bilateralFilter(gray,blur,9,75,75); cv.adaptiveThreshold(blur,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,21,8);
-    contours=new cv.MatVector(); hierarchy=new cv.Mat(); cv.findContours(bw,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
-    for(let i=0;i<contours.size();i++){const cnt=contours.get(i);const area=cv.contourArea(cnt); const peri=cv.arcLength(cnt,true); const approx=new cv.Mat(); cv.approxPolyDP(cnt,approx,0.02*peri,true); if(approx.rows===4 && area>areaMax){ for(let j=0;j<4;j++){approx.intPtr(j,0)[0]+=cx; approx.intPtr(j,0)[1]+=cy;} areaMax=area; tableQuad=approx.clone();} cnt.delete();}
+async function detectAndCut() {
+  if (!cvReady) {
+    alert("OpenCV.js aún no está listo.");
+    return;
   }
-  if(!tableQuad){ cleanup(); src.delete(); gray.delete(); blur.delete(); bw.delete(); alert('No se pudo detectar la tabla. Intenta encuadrar mejor la tabla.'); return; }
-  const pts=[]; for(let i=0;i<4;i++){ pts.push({x:tableQuad.intPtr(i,0)[0], y:tableQuad.intPtr(i,0)[1]}); }
-  pts.sort((a,b)=>a.y-b.y); const top=pts.slice(0,2).sort((a,b)=>a.x-b.x); const bottom=pts.slice(2).sort((a,b)=>a.x-b.x);
-  const tl=top[0], tr=top[1], bl=bottom[0], br=bottom[1];
-  const W=Math.round(Math.max(Math.hypot(tr.x-tl.x,tr.y-tl.y),Math.hypot(br.x-bl.x,br.y-bl.y)));
-  const H=Math.round(Math.max(Math.hypot(bl.x-tl.x,bl.y-tl.y),Math.hypot(br.x-tr.x,br.y-tr.y)));
-  const srcTri=cv.matFromArray(4,1,cv.CV_32FC2,[tl.x,tl.y,tr.x,tr.y,br.x,br.y,bl.x,bl.y]);
-  const dstTri=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,W,0,W,H,0,H]);
-  const M=cv.getPerspectiveTransform(srcTri,dstTri); let warped=new cv.Mat(); cv.warpPerspective(src,warped,M,new cv.Size(W,H));
-  cv.imshow('canvas',warped);
-  const c1w=Math.round(W*0.07), c5w=Math.round(W*0.10); const c3x=Math.round(W*0.15), c3w=Math.round(W*0.70);
-  function cropTo(ctx2d,x,y,w,h){ const roi=warped.roi(new cv.Rect(x,y,w,Math.max(1,H-10))); const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=roi.rows; cv.imshow(tmp,roi); ctx2d.canvas.width=w; ctx2d.canvas.height=roi.rows; ctx2d.drawImage(tmp,0,0); roi.delete(); }
-  cropTo(c1,5,5,c1w,H-10); cropTo(c3,c3x,5,c3w,H-10); cropTo(c5,W-c5w-5,5,c5w,H-10);
-  colCrops={c1:document.getElementById('col1'), c3:document.getElementById('col3'), c5:document.getElementById('col5')}; tableMask=warped;
-  gray.delete(); blur.delete(); bw.delete(); contours.delete(); hierarchy.delete(); tableQuad.delete(); src.delete();
+
+  const input = document.getElementById("fileInput").files[0];
+  if (!input) {
+    alert("Por favor, sube una imagen primero.");
+    return;
+  }
+
+  const image = await loadImageToMat(input);
+  let gray = new cv.Mat();
+  cv.cvtColor(image, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
+  cv.threshold(gray, gray, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+
+  // --- NUEVO: Detección horizontal más robusta ---
+  let contours = new cv.MatVector();
+  let hierarchy = new cv.Mat();
+  cv.findContours(gray, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  let boxes = [];
+  for (let i = 0; i < contours.size(); i++) {
+    const rect = cv.boundingRect(contours.get(i));
+    if (rect.width > 150 && rect.height > 30) {
+      boxes.push(rect);
+    }
+  }
+
+  boxes.sort((a, b) => a.x - b.x); // Ordenar de izquierda a derecha
+
+  // --- Cortes horizontales ---
+  const cols = ["col1", "col3", "col5"];
+  const preview = document.getElementById("preview");
+  preview.innerHTML = "";
+
+  boxes.forEach((rect, i) => {
+    const roi = image.roi(rect);
+    const canvas = document.createElement("canvas");
+    cv.imshow(canvas, roi);
+    preview.appendChild(canvas);
+    if (i < cols.length) canvas.title = `Col ${cols[i]}`;
+    roi.delete();
+  });
+
+  image.delete(); gray.delete(); contours.delete(); hierarchy.delete();
 }
+
 async function ocrColumns(cols){
   const worker=await Tesseract.createWorker('spa'); const out=[];
   let {data:{text:numText}}=await worker.recognize(cols.c1.toDataURL()); numText=numText.replace(/[^0-9\n]+/g,'').split(/\n+/).filter(Boolean);
