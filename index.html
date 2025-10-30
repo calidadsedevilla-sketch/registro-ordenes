@@ -1,558 +1,258 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Calidad Sede Villa – OCR Horizontal v4.2.1</title>
-  <meta name="theme-color" content="#ffffff" />
-  <link rel="icon" href="icons/icon-192.png" type="image/png"/>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Calidad Sede Villa – OCR Horizontal v4.3.1</title>
+<meta name="theme-color" content="#ffffff"/>
+<link rel="manifest" href="manifest.json"/>
 
-  <style>
-    :root{
-      --bg:#ffffff; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
-      --brand:#0ea5e9; --ok:#16a34a; --err:#dc2626; --chip:#f3f4f6;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu}
-    header{position:sticky;top:0;z-index:10;background:#ffffffcc;backdrop-filter:saturate(1.2) blur(6px);border-bottom:1px solid var(--line)}
-    .wrap{max-width:980px;margin:0 auto;padding:14px}
-    h1{margin:0;font-size:20px;letter-spacing:.2px}
-    .sub{display:none} /* <<< oculta el texto bajo el título */
-    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    button,.btn{appearance:none;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;border-radius:12px;padding:9px 12px;font-weight:600;cursor:pointer}
-    button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
-    button.ghost{background:#fff;border-color:var(--line)}
-    button.ok{background:var(--ok);border-color:var(--ok);color:#fff}
-    button.err{background:var(--err);border-color:var(--err);color:#fff}
-    input[type=file]{display:none}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    @media (max-width:860px){.grid{grid-template-columns:1fr}}
-    .chip{display:inline-flex;gap:8px;align-items:center;font-size:12px;color:#111;background:var(--chip);border:1px solid var(--line);padding:6px 9px;border-radius:999px}
-    canvas{max-width:100%;border:1px dashed var(--line);border-radius:8px}
-    .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    .colbox{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px}
-    .mini{font-size:12px;color:var(--muted)}
-    .list{display:grid;gap:8px}
-    .item{display:grid;grid-template-columns:64px 1fr 82px;gap:10px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px}
-    .cell{padding:6px 8px;border-radius:8px;background:#f9fafb;border:1px solid var(--line)}
-    .num{font-variant-numeric:tabular-nums}
-    .footer{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-    .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe}
-    .hint{font-size:12px;color:var(--muted)}
-  </style>
+<style>
+:root {
+  color-scheme: light dark;
+  --accent:#0b1220;
+  --ok:#28a745;
+  --error:#c00;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:#ffffff;
+    --text:#222;
+    --muted:#777;
+    --card:#f7f7f7;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0b1220;
+    --text:#f2f2f2;
+    --muted:#aaa;
+    --card:#18212e;
+  }
+}
+
+body{
+  font-family:Arial,Helvetica,sans-serif;
+  margin:0;padding:0;
+  background:var(--bg);
+  color:var(--text);
+}
+header{
+  background:var(--card);
+  border-bottom:2px solid var(--accent);
+  padding:10px 15px;
+  text-align:center;
+}
+h1{margin:4px 0;font-size:20px;}
+.sub{font-size:14px;color:var(--muted);}
+main{
+  padding:15px;
+  text-align:center;
+}
+button{
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:10px 14px;
+  margin:5px;
+  cursor:pointer;
+  font-size:14px;
+}
+button.ghost{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid var(--accent);
+}
+canvas{
+  border:1px dashed var(--muted);
+  max-width:90%;
+  margin-top:8px;
+}
+.tip{
+  font-size:13px;
+  color:var(--muted);
+  margin-top:8px;
+}
+footer{
+  margin-top:20px;
+  font-size:12px;
+  color:var(--muted);
+}
+#tablaOCR {
+  margin:20px auto;
+  border-collapse:collapse;
+  width:95%;
+  max-width:800px;
+}
+#tablaOCR th,#tablaOCR td{
+  border:1px solid #aaa;
+  padding:6px;
+  text-align:left;
+  font-size:13px;
+}
+#tablaOCR th{
+  background:var(--card);
+}
+</style>
 </head>
 <body>
-  <header>
-    <div class="wrap">
-      <h1>Calidad Sede Villa – OCR Horizontal v4.2.1</h1>
-      <div class="sub">Corta columnas N°, Descripción y Cant. (OpenCV.js + Tesseract.js spa). Autocorrección de perspectiva y reintento.</div>
-    </div>
-  </header>
 
-  <main class="wrap">
-    <section class="card">
-      <div class="toolbar">
-        <label for="file" class="btn">📷 Tomar foto / Subir imagen</label>
-        <input id="file" type="file" accept="image/*" capture="environment" />
-        <button id="btnCut" class="primary" disabled>✂️ Detectar tabla y cortar</button>
-        <button id="btnOCR" class="ghost" disabled>🔎 OCR por columnas</button>
-        <button id="btnClear" class="ghost">🧼 Limpiar</button>
-      </div>
+<header>
+  <h1>OCR – Órdenes de Venta (Smart v4.3.1)</h1>
+  <div class="sub">Calidad Sede Villa – OCR Horizontal con tabla ordenada</div>
+</header>
 
-      <div class="grid" style="margin-top:12px">
-        <div>
-          <div class="chip">Vista previa (autocorrección leve)</div>
-          <canvas id="canvas" height="0" aria-label="Vista previa"></canvas>
-          <div class="mini">Tip: encuadra principalmente la <b>tabla</b> en horizontal; con buena luz y lo más perpendicular posible.</div>
-        </div>
+<main>
+  <div>
+    <button id="fileBtn">📷 Tomar foto / Subir imagen</button>
+    <input type="file" id="file" accept="image/*" capture="environment" style="display:none"/>
+    <button id="btnClear" class="ghost">🧹 Limpiar</button>
+  </div>
 
-        <div>
-          <div class="chip">Recortes de columnas detectadas</div>
-          <div class="cols" style="margin-top:8px">
-            <div class="colbox"><b>Col 1 · N°</b><br><canvas id="cCol1" height="0"></canvas></div>
-            <div class="colbox"><b>Col 3 · Descripción</b><br><canvas id="cCol3" height="0"></canvas></div>
-            <div class="colbox"><b>Col 5 · Cant.</b><br><canvas id="cCol5" height="0"></canvas></div>
-          </div>
-          <div class="footer" style="margin-top:10px">
-            <button id="btnConfirm" class="ok" disabled>✅ Confirmar columnas</button>
-            <span id="colsInfo" class="badge">sin columnas</span>
-          </div>
+  <h4>Vista previa (autocorrección leve)</h4>
+  <canvas id="canvas"></canvas>
+  <div class="tip">
+    Tip: encuadra la <b>tabla</b> horizontalmente, con buena luz y perpendicular.
+  </div>
 
-          <div class="chip" style="margin-top:12px">Resultados extraídos (solo esta foto)</div>
-          <div id="results" class="list" aria-live="polite"></div>
-          <div class="footer" style="margin-top:8px">
-            <button id="btnExportJSON" class="ok" disabled>⬇️ Exportar JSON</button>
-            <button id="btnExportCSV" class="ok" disabled>⬇️ Exportar CSV</button>
-            <span id="count" class="badge">0 ítems</span>
-          </div>
-        </div>
-      </div>
-    </section>
-    <p class="hint">Privacidad: todo el procesamiento se hace <b>en tu navegador</b> (OpenCV.js + Tesseract.js). No se suben imágenes a ningún servidor.</p>
-  </main>
+  <h4>Tabla OCR generada</h4>
+  <table id="tablaOCR">
+    <thead>
+      <tr><th>N°</th><th>Descripción</th><th>Cant.</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</main>
 
-  <!-- OpenCV.js y Tesseract.js -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="cvReady=true"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<footer>
+  <div>Smart OCR Horizontal v4.3.1 © 2025 Calidad Sede Villa</div>
+</footer>
 
-  <script>
-  // ========= UTILIDADES BÁSICAS =========
-  const $ = q => document.querySelector(q);
-  const canvas = $('#canvas'), ctx = canvas.getContext('2d');
-  const c1 = $('#cCol1').getContext('2d');
-  const c3 = $('#cCol3').getContext('2d');
-  const c5 = $('#cCol5').getContext('2d');
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+<script>
+function toggleLoading(state){ document.body.style.cursor = state ? "wait" : "default"; }
 
-  const file = $('#file');
-  const btnCut = $('#btnCut');
-  const btnConfirm = $('#btnConfirm');
-  const btnClear = $('#btnClear');
-  const btnOCR = $('#btnOCR');
-  const btnExportJSON = $('#btnExportJSON');
-  const btnExportCSV = $('#btnExportCSV');
-  const resultsEl = $('#results');
-  const countBadge = $('#count');
-  const colsInfo = $('#colsInfo');
-
-  let baseImg = null;            // Image element dibujado
-  let cropBoxes = null;          // {n:{x,y,w,h}, desc:{...}, cant:{...}}
-  let rowsParsed = [];           // resultados OCR
-
-  file.addEventListener('change', async () => {
-    if (!file.files?.length) return;
-    const img = await loadImage(file.files[0]);
-    drawAutoEnhanced(img); // autocorrección leve
-    btnCut.disabled = false;
-    btnOCR.disabled = true;
-    btnConfirm.disabled = true;
-    clearCrops();
-    resultsEl.innerHTML = '';
-    setCount(0);
-  });
-
-  btnClear.addEventListener('click', () => {
-    file.value = '';
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    clearCrops();
-    resultsEl.innerHTML = '';
-    btnCut.disabled = true;
-    btnOCR.disabled = true;
-    btnConfirm.disabled = true;
-    btnExportJSON.disabled = true;
-    btnExportCSV.disabled = true;
-    setCount(0);
-    colsInfo.textContent = 'sin columnas';
-  });
-
-  btnCut.addEventListener('click', async () => {
-    if (!baseImg) return;
-    // espera a que opencv esté listo
-    await waitFor(() => window.cvReady, 6000);
-    try{
-      cropBoxes = detectColumns(canvas); // heurística horizontal
-      renderCrops();
-      btnConfirm.disabled = false;
-      colsInfo.textContent = '3 columnas detectadas';
-    }catch(e){
-      alert('No se pudo detectar la tabla/columnas. Intenta encuadrar mejor la tabla.\n' + e.message);
-    }
-  });
-
-  btnConfirm.addEventListener('click', () => {
-    btnOCR.disabled = false;
-  });
-
-  btnOCR.addEventListener('click', async () => {
-    if (!cropBoxes) return;
-    rowsParsed = await ocrByColumns(canvas, cropBoxes);
-    renderResults(rowsParsed);
-    btnExportJSON.disabled = rowsParsed.length===0;
-    btnExportCSV.disabled = rowsParsed.length===0;
-    setCount(rowsParsed.length);
-  });
-
-  btnExportJSON.addEventListener('click', () => {
-    downloadFile('items.json', JSON.stringify(rowsParsed, null, 2), 'application/json');
-  });
-  btnExportCSV.addEventListener('click', () => {
-    const rows = [['numero','descripcion','cantidad'], ...rowsParsed.map(r => [r.numero, csvEscape(r.descripcion), r.cantidad])];
-    const csv = rows.map(r => r.join(',')).join('\n');
-    downloadFile('items.csv', csv, 'text/csv');
-  });
-
-  function setCount(n){ countBadge.textContent = `${n} ítems`; }
-  function downloadFile(name, content, mime){
-    const blob = new Blob([content], {type:mime});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = name; a.click();
-    URL.revokeObjectURL(a.href);
-  }
-  function csvEscape(s){ return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
-
-  function clearCrops(){
-    ['cCol1','cCol3','cCol5'].forEach(id=>{
-      const c = $('#'+id); c.width = 0; c.height = 0;
-    });
-  }
-
-  // ========= CARGA y AUTOMEJORA =========
-  function loadImage(file){
-    return new Promise((resolve,reject)=>{
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
-  }
-
-  function drawAutoEnhanced(img){
-    // Escala a ancho máximo 1600
-    const maxW = 1600;
-    const scale = Math.min(1, maxW / img.naturalWidth);
-    const W = Math.round(img.naturalWidth * scale);
-    const H = Math.round(img.naturalHeight * scale);
-    canvas.width = W; canvas.height = H;
-    ctx.drawImage(img, 0, 0, W, H);
-
-    // 1) Autogiro si está vertical
-    if (H > W * 1.2){
-      rotate90();
-    }
-
-    // 2) Gris + ligero contraste
-    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
-    const d = imgData.data; const k = 1.2;
-    for(let i=0;i<d.length;i+=4){
-      const y = 0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2];
-      const g = Math.max(0, Math.min(255, ((y/255-.5)*k+.5)*255 ));
-      d[i]=d[i+1]=d[i+2]=g;
-    }
-    ctx.putImageData(imgData,0,0);
-    baseImg = img;
-  }
-
-  function rotate90(){
-    const tmp = document.createElement('canvas');
-    tmp.width = canvas.height; tmp.height = canvas.width;
-    const t = tmp.getContext('2d');
-    t.translate(tmp.width,0); t.rotate(Math.PI/2);
-    t.drawImage(canvas,0,0);
-    canvas.width = tmp.width; canvas.height = tmp.height;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(tmp,0,0);
-  }
-
-  // ========= DETECCIÓN DE COLUMNAS (HORIZONTAL) =========
-  // Heurística robusta: proyección vertical + limpieza morfológica.
-  function detectColumns(cnv){
-    const src = cv.imread(cnv);
-    let gray = new cv.Mat(), thr = new cv.Mat(), morph = new cv.Mat();
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-    // binariza adaptativo para lidiar con iluminación
-    cv.adaptiveThreshold(gray, thr, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY_INV, 35, 15);
-
-    // abre-cierra para acentuar texto/columnas
-    const kx = new cv.Mat.ones(3, 25, cv.CV_8U);   // horizontal
-    const ky = new cv.Mat.ones(9, 3, cv.CV_8U);    // vertical
-    cv.morphologyEx(thr, morph, cv.MORPH_CLOSE, kx);
-    cv.morphologyEx(morph, morph, cv.MORPH_OPEN, ky);
-
-    // proyección vertical
-    const hist = new Array(src.cols).fill(0);
-    for (let x=0; x<src.cols; x++){
-      let sum=0;
-      for (let y=0; y<src.rows; y++){
-        sum += morph.ucharAt(y,x)>0 ? 1 : 0;
-      }
-      hist[x]=sum;
-    }
-    // umbral para “texto”
-    const maxV = Math.max(...hist);
-    const cut = Math.max(8, Math.round(maxV*0.18));
-
-    // busca zonas continuas (bandas) con hist>cut
-    const bands = [];
-    let s=-1;
-    for (let x=0;x<hist.length;x++){
-      if (hist[x]>cut && s<0) s=x;
-      if ((hist[x]<=cut || x===hist.length-1) && s>=0){
-        const e = (hist[x]<=cut)? x-1 : x;
-        if (e-s>20) bands.push([s,e]);
-        s=-1;
-      }
-    }
-
-    // Elegimos 3 bandas principales repartidas a lo ancho (izq/centro/der)
-    if (bands.length<2) throw new Error('Zonas de texto insuficientes');
-    const thirds = src.cols/3;
-    const pick = (from,to) => {
-      const seg = bands.filter(b=> (b[0]+b[1])/2 >= from && (b[0]+b[1])/2 < to);
-      if (!seg.length) return null;
-      // banda más ancha de ese tercio
-      seg.sort((a,b)=> (b[1]-b[0]) - (a[1]-a[0]));
-      return seg[0];
-    };
-    let b1 = pick(0,thirds), b2 = pick(thirds,2*thirds), b3 = pick(2*thirds,3*thirds);
-    // fallback si alguno quedó nulo: toma globales más anchos
-    const byWidth = [...bands].sort((a,b)=> (b[1]-b[0]) - (a[1]-a[0]));
-    if (!b1) b1 = byWidth[0];
-    if (!b2) b2 = byWidth[1] || byWidth[0];
-    if (!b3) b3 = byWidth[2] || byWidth[1] || byWidth[0];
-
-    // márgenes internos para evitar líneas de tabla
-    const pad = 6;
-    const box = (band) => {
-      const x = Math.max(0, band[0]+pad);
-      const w = Math.max(10, band[1]-band[0]-2*pad);
-      return {x, y: Math.round(src.rows*0.20), w, h: Math.round(src.rows*0.68)}; // recorta cuerpo de la tabla
-    };
-
-    const boxes = {
-      n:    box(b1),
-      desc: box(b2),
-      cant: box(b3)
-    };
-
-    // limpieza
-    gray.delete(); thr.delete(); morph.delete(); kx.delete(); ky.delete(); src.delete();
-    return boxes;
-  }
-
-  function renderCrops(){
-    ['n','desc','cant'].forEach((k, i)=>{
-      const box = cropBoxes[k];
-      const sub = cropCanvas(canvas, box);
-      const target = [c1,c3,c5][i].canvas;
-      target.width = sub.width; target.height = sub.height;
-      [c1,c3,c5][i].drawImage(sub,0,0);
-    });
-  }
-
-  function cropCanvas(srcCanvas, box){
-    const tmp = document.createElement('canvas');
-    tmp.width = box.w; tmp.height = box.h;
-    const t = tmp.getContext('2d');
-    t.drawImage(srcCanvas, box.x, box.y, box.w, box.h, 0,0, box.w, box.h);
-    return tmp;
-  }
-
-  // ========= OCR POR COLUMNAS =========
-  async function ocrByColumns(srcCanvas, boxes){
-    // 1) OCR cada columna por separado
-    const [txtN, txtD, txtC] = await Promise.all([
-      ocrCanvas(cropCanvas(srcCanvas, boxes.n)),
-      ocrCanvas(cropCanvas(srcCanvas, boxes.desc)),
-      ocrCanvas(cropCanvas(srcCanvas, boxes.cant))
-    ]);
-
-    // 2) Parse de columnas (una línea por fila)
-    const linesN = cleanLines(txtN).map(s => s.replace(/[^0-9]/g,'').trim()).filter(Boolean);
-    const linesD = cleanLines(txtD);
-    const linesC = cleanLines(txtC).map(s => s.replace(/[^0-9]/g,'').trim()).filter(Boolean);
-
-    // Empareja por el máximo de longitud disponible
-    const nRows = Math.max(linesN.length, linesD.length, linesC.length);
-    const out = [];
-    for (let i=0;i<nRows;i++){
-      const numero = parseInt(linesN[i] || '',10);
-      const cantidad = parseInt(linesC[i] || '',10);
-      const descripcion = (linesD[i] || '').replace(/\s{2,}/g,' ').trim();
-      // Filtra filas poco probables
-      if (!isFinite(numero) || isNaN(numero)) continue;
-      if (!descripcion || descripcion.length<3) continue;
-      const cant = isFinite(cantidad) && !isNaN(cantidad) ? cantidad : 0;
-      out.push({numero, descripcion, cantidad:cant});
-    }
-    // Orden por N°
-    out.sort((a,b)=> a.numero - b.numero);
-    return out;
-  }
-
-  async function ocrCanvas(cnv){
-    const blob = await new Promise(res => cnv.toBlob(res, 'image/png', 1));
-    const { data:{ text } } = await Tesseract.recognize(blob, 'spa', { logger: _=>{} });
-    return text;
-  }
-
-  function cleanLines(t){
-    return String(t||'')
-      .replace(/\u00A0/g,' ')
-      .split('\n')
-      .map(s=>s.trim())
-      .filter(Boolean);
-  }
-
-  // ========= RENDER RESULTADOS =========
-  function renderResults(items){
-    resultsEl.innerHTML = '';
-    if (!items.length){
-      resultsEl.innerHTML = '<div class="mini">No se detectaron filas válidas.</div>';
-      return;
-    }
-    for (const row of items){
-      const el = document.createElement('div');
-      el.className = 'item';
-      el.innerHTML = `
-        <div class="cell num"><b>N°</b><br>${row.numero??''}</div>
-        <div class="cell"><b>Descripción</b><br>${escapeHTML(row.descripcion??'')}</div>
-        <div class="cell"><b>Cant.</b><br>${row.cantidad??0}</div>
-      `;
-      resultsEl.appendChild(el);
-    }
-  }
-
-  function escapeHTML(s){return s.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
-  async function waitFor(pred, ms=3000){
-    const t0 = performance.now();
-    while(!pred()){
-      if (performance.now()-t0 > ms) throw new Error('timeout');
-      await new Promise(r=>setTimeout(r,60));
-    }
-  }
-    <script>
-/* ==========================
-   ROTACIÓN FIJA SOLO HORIZONTAL
-   - Lee EXIF (si existe) para 3/6/8.
-   - Fuerza apaisado (si alto > ancho, rota 90°).
-   - Si EXIF dice 180° (3), rota 180°.
-   ========================== */
-
-/* Helpers de canvas */
-function createCanvas(w,h){
-  const c=document.createElement('canvas');
-  c.width=w; c.height=h;
-  return c;
-}
-function drawRotated(srcCanvas, deg){
-  const rad = deg * Math.PI/180;
-  let w = srcCanvas.width, h = srcCanvas.height;
-  // 90 o 270: se intercambian dimensiones
-  const rotated = (Math.abs(deg)%180===90);
-  const out = createCanvas(rotated? h : w, rotated? w : h);
-  const ctx = out.getContext('2d');
-  ctx.translate(out.width/2, out.height/2);
+function createCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
+function drawRotated(srcCanvas,deg){
+  const rad=deg*Math.PI/180;
+  let w=srcCanvas.width,h=srcCanvas.height;
+  const rotated=(Math.abs(deg)%180===90);
+  const out=createCanvas(rotated?h:w,rotated?w:h);
+  const ctx=out.getContext('2d');
+  ctx.translate(out.width/2,out.height/2);
   ctx.rotate(rad);
-  ctx.drawImage(srcCanvas, -w/2, -h/2);
+  ctx.drawImage(srcCanvas,-w/2,-h/2);
   return out;
 }
-
-/* Lee EXIF Orientation  (devuelve 1,3,6,8 o null) */
 async function getExifOrientation(file){
   try{
-    const buf = await file.arrayBuffer();
-    const view = new DataView(buf);
-    // JPG?
-    if (view.getUint16(0,false) !== 0xFFD8) return null;
-    let offset = 2;
-    while (offset < view.byteLength){
-      const marker = view.getUint16(offset, false); offset += 2;
-      if (marker === 0xFFE1){ // APP1 (EXIF)
-        const len = view.getUint16(offset, false); offset += 2;
-        // 'Exif\0\0'
-        if (view.getUint32(offset, false) !== 0x45786966) return null;
-        offset += 6;
-        const little = view.getUint16(offset, false) === 0x4949; // II
-        offset += 2; // TIFF magic
-        const firstIFD = view.getUint32(offset, little); offset += 4;
-        let ifdOffset = (offset - 4) + firstIFD;
-        const entries = view.getUint16(ifdOffset, little); ifdOffset += 2;
-        for (let i=0;i<entries;i++){
-          const entryOffset = ifdOffset + i*12;
-          const tag = view.getUint16(entryOffset, little);
-          if (tag===0x0112){ // Orientation
-            const val = view.getUint16(entryOffset+8, little);
-            return val; // 1,3,6,8
+    const buf=await file.arrayBuffer();const view=new DataView(buf);
+    if(view.getUint16(0,false)!==0xFFD8)return null;
+    let offset=2;
+    while(offset<view.byteLength){
+      const marker=view.getUint16(offset,false);offset+=2;
+      if(marker===0xFFE1){
+        const len=view.getUint16(offset,false);offset+=2;
+        if(view.getUint32(offset,false)!==0x45786966)return null;
+        offset+=6;const little=view.getUint16(offset,false)===0x4949;
+        offset+=2;const firstIFD=view.getUint32(offset,little);offset+=4;
+        let ifdOffset=(offset-4)+firstIFD;
+        const entries=view.getUint16(ifdOffset,little);ifdOffset+=2;
+        for(let i=0;i<entries;i++){
+          const entryOffset=ifdOffset+i*12;
+          const tag=view.getUint16(entryOffset,little);
+          if(tag===0x0112){
+            const val=view.getUint16(entryOffset+8,little);
+            return val;
           }
-        }
-        return null;
-      } else if ((marker & 0xFF00) !== 0xFF00){
-        break;
-      } else {
-        const len = view.getUint16(offset, false); offset += len;
-      }
-    }
-    return null;
-  }catch(_){ return null; }
+        }return null;
+      }else if((marker&0xFF00)!==0xFF00){break;}
+      else{const len=view.getUint16(offset,false);offset+=len;}
+    }return null;
+  }catch(_){return null;}
 }
-
-/* Carga el archivo en un canvas base, respetando EXIF */
 async function fileToCanvasWithExif(file){
-  // 1) Crear canvas base desde la imagen
-  const imgURL = URL.createObjectURL(file);
-  const img = await new Promise((resolve,reject)=>{
-    const im = new Image();
-    im.onload = ()=> resolve(im);
-    im.onerror = reject;
-    im.src = imgURL;
+  const imgURL=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{
+    const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=imgURL;
   });
-  let base = createCanvas(img.naturalWidth || img.width, img.naturalHeight || img.height);
-  base.getContext('2d').drawImage(img, 0,0, base.width, base.height);
-
-  // 2) Leer EXIF Orientation (si hay)
-  const orientation = await getExifOrientation(file); // 1,3,6,8 o null
-
-  // 3) Ajustar por EXIF (6=rotar 90; 8=rotar -90; 3=180)
-  if (orientation===6) base = drawRotated(base, 90);
-  else if (orientation===8) base = drawRotated(base, -90);
-  else if (orientation===3) base = drawRotated(base, 180);
-
-  // 4) Forzar SOLO HORIZONTAL: si aún está vertical, rotar 90°
-  if (base.height > base.width){
-    base = drawRotated(base, 90);
-  }
-
-  // 5) Suavizar (escala de grises + boost contraste leve)
-  const ctx = base.getContext('2d');
-  const imgData = ctx.getImageData(0,0,base.width,base.height);
-  const d = imgData.data;
-  const contrast = 1.2;
-  for (let i=0;i<d.length;i+=4){
-    const r=d[i], g=d[i+1], b=d[i+2];
-    let y = 0.2126*r + 0.7152*g + 0.0722*b;
-    y = ((y/255 - .5)*contrast + .5)*255;
-    const v = Math.max(0, Math.min(255, y));
-    d[i]=d[i+1]=d[i+2]=v;
-  }
-  ctx.putImageData(imgData,0,0);
-
+  let base=createCanvas(img.naturalWidth||img.width,img.naturalHeight||img.height);
+  base.getContext('2d').drawImage(img,0,0,base.width,base.height);
+  const orientation=await getExifOrientation(file);
+  if(orientation===6)base=drawRotated(base,90);
+  else if(orientation===8)base=drawRotated(base,-90);
+  else if(orientation===3)base=drawRotated(base,180);
+  if(base.height>base.width)base=drawRotated(base,90);
   URL.revokeObjectURL(imgURL);
   return base;
 }
 
-/* Punto de entrada que usas al seleccionar/tomar foto */
+async function detectarTablaYCortarColumnas(baseCanvas){
+  const w=baseCanvas.width,h=baseCanvas.height;
+  const colN=[0.02*w,0.13*w];
+  const colDes=[0.24*w,0.79*w];
+  const colCant=[0.88*w,0.97*w];
+  const columnas=[
+    {nombre:"N°",rango:colN},
+    {nombre:"Descripción",rango:colDes},
+    {nombre:"Cant.",rango:colCant}
+  ];
+
+  const resultados = [];
+
+  for(const col of columnas){
+    const cw=col.rango[1]-col.rango[0];
+    const ch=h*0.93;
+    const c=createCanvas(cw,ch);
+    c.getContext('2d').drawImage(baseCanvas,col.rango[0],h*0.05,cw,ch,0,0,cw,ch);
+    const { data:{ text } } = await Tesseract.recognize(c,'spa',{logger:m=>console.log(m.status)});
+    resultados.push(text.trim());
+  }
+
+  mostrarTabla(resultados);
+}
+
+function mostrarTabla(textos){
+  const [colN,colDes,colCant]=textos.map(t=>t.split(/\n+/).filter(Boolean));
+  const tbody=document.querySelector("#tablaOCR tbody");
+  tbody.innerHTML="";
+  const filas=Math.max(colN.length,colDes.length,colCant.length);
+  for(let i=0;i<filas;i++){
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${colN[i]||''}</td>
+      <td>${colDes[i]||''}</td>
+      <td>${colCant[i]||''}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
 async function loadAndDraw(file){
   try{
-    toggleLoading(true); // si ya tienes esta función
-    const baseCanvas = await fileToCanvasWithExif(file);
-
-    // Pinta la vista previa en tu <canvas id="canvas">
-    const preview = document.getElementById('canvas');
-    preview.width  = baseCanvas.width;
-    preview.height = baseCanvas.height;
-    const pctx = preview.getContext('2d');
-    pctx.drawImage(baseCanvas, 0,0);
-
-    // ← desde aquí llamas a tu pipeline existente:
-    // detectarTablaYCortarColumnas(baseCanvas)
-    // render de recortes, etc.
+    toggleLoading(true);
+    const baseCanvas=await fileToCanvasWithExif(file);
+    const preview=document.getElementById('canvas');
+    preview.width=baseCanvas.width;preview.height=baseCanvas.height;
+    preview.getContext('2d').drawImage(baseCanvas,0,0);
+    await detectarTablaYCortarColumnas(baseCanvas);
   }catch(err){
-    alert('No se pudo preparar la imagen. Intenta nuevamente.');
+    alert('Error procesando imagen.');
     console.error(err);
   }finally{
     toggleLoading(false);
   }
 }
 
-/* Conecta el input file con loadAndDraw */
-document.getElementById('file').addEventListener('change', async (e)=>{
-  const f = e.target.files?.[0];
-  if (!f) return;
-  await loadAndDraw(f);
-  // Habilita tus botones de "Detectar tabla" y "OCR por columnas"
-  document.getElementById('btnDetect')?.removeAttribute('disabled');
-  document.getElementById('btnOcrCols')?.removeAttribute('disabled');
-});
+document.getElementById('fileBtn').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{
+  const f=e.target.files?.[0];if(f)loadAndDraw(f);
+};
+document.getElementById('btnClear').onclick=()=>{
+  document.getElementById('canvas').getContext('2d').clearRect(0,0,9999,9999);
+  document.querySelector("#tablaOCR tbody").innerHTML="";
+};
 </script>
+
 </body>
 </html>
