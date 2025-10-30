@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Calidad Sede Villa – OCR Horizontal v4.3.1</title>
+<title>Calidad Sede Villa – OCR Horizontal v4.4.0</title>
 <meta name="theme-color" content="#ffffff"/>
 <link rel="manifest" href="manifest.json"/>
 
@@ -15,92 +15,32 @@
   --error:#c00;
 }
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg:#ffffff;
-    --text:#222;
-    --muted:#777;
-    --card:#f7f7f7;
-  }
+  :root { --bg:#ffffff; --text:#222; --muted:#777; --card:#f7f7f7; }
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg:#0b1220;
-    --text:#f2f2f2;
-    --muted:#aaa;
-    --card:#18212e;
-  }
+  :root { --bg:#0b1220; --text:#f2f2f2; --muted:#aaa; --card:#18212e; }
 }
-
-body{
-  font-family:Arial,Helvetica,sans-serif;
-  margin:0;padding:0;
-  background:var(--bg);
-  color:var(--text);
-}
-header{
-  background:var(--card);
-  border-bottom:2px solid var(--accent);
-  padding:10px 15px;
-  text-align:center;
-}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:var(--bg);color:var(--text);}
+header{background:var(--card);border-bottom:2px solid var(--accent);padding:10px 15px;text-align:center;}
 h1{margin:4px 0;font-size:20px;}
 .sub{font-size:14px;color:var(--muted);}
-main{
-  padding:15px;
-  text-align:center;
-}
-button{
-  background:var(--accent);
-  color:#fff;
-  border:none;
-  border-radius:8px;
-  padding:10px 14px;
-  margin:5px;
-  cursor:pointer;
-  font-size:14px;
-}
-button.ghost{
-  background:transparent;
-  color:var(--accent);
-  border:1px solid var(--accent);
-}
-canvas{
-  border:1px dashed var(--muted);
-  max-width:90%;
-  margin-top:8px;
-}
-.tip{
-  font-size:13px;
-  color:var(--muted);
-  margin-top:8px;
-}
-footer{
-  margin-top:20px;
-  font-size:12px;
-  color:var(--muted);
-}
-#tablaOCR {
-  margin:20px auto;
-  border-collapse:collapse;
-  width:95%;
-  max-width:800px;
-}
-#tablaOCR th,#tablaOCR td{
-  border:1px solid #aaa;
-  padding:6px;
-  text-align:left;
-  font-size:13px;
-}
-#tablaOCR th{
-  background:var(--card);
-}
+main{padding:15px;text-align:center;}
+button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 14px;margin:5px;cursor:pointer;font-size:14px;}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+canvas{border:1px dashed var(--muted);max-width:90%;margin-top:8px;}
+.tip{font-size:13px;color:var(--muted);margin-top:8px;}
+footer{margin-top:20px;font-size:12px;color:var(--muted);}
+#tablaOCR{margin:20px auto;border-collapse:collapse;width:95%;max-width:900px;}
+#tablaOCR th,#tablaOCR td{border:1px solid #aaa;padding:6px;text-align:left;font-size:13px;}
+#tablaOCR th{background:var(--card);}
+.small{font-size:12px;color:var(--muted);margin-top:6px}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>OCR – Órdenes de Venta (Smart v4.3.1)</h1>
-  <div class="sub">Calidad Sede Villa – OCR Horizontal con tabla ordenada</div>
+  <h1>OCR – Órdenes de Venta (Smart v4.4.0)</h1>
+  <div class="sub">Calidad Sede Villa – OCR Horizontal con extracción de 3 columnas</div>
 </header>
 
 <main>
@@ -110,147 +50,272 @@ footer{
     <button id="btnClear" class="ghost">🧹 Limpiar</button>
   </div>
 
-  <h4>Vista previa (autocorrección leve)</h4>
+  <h4>Vista previa (autocorrección, recorte leve)</h4>
   <canvas id="canvas"></canvas>
   <div class="tip">
     Tip: encuadra la <b>tabla</b> horizontalmente, con buena luz y perpendicular.
   </div>
+  <div class="small" id="debugInfo"></div>
 
   <h4>Tabla OCR generada</h4>
   <table id="tablaOCR">
-    <thead>
-      <tr><th>N°</th><th>Descripción</th><th>Cant.</th></tr>
-    </thead>
+    <thead><tr><th>N°</th><th>Descripción</th><th>Cant.</th></tr></thead>
     <tbody></tbody>
   </table>
 </main>
 
 <footer>
-  <div>Smart OCR Horizontal v4.3.1 © 2025 Calidad Sede Villa</div>
+  <div>Smart OCR Horizontal v4.4.0 © 2025 Calidad Sede Villa</div>
 </footer>
 
+<!-- Tesseract -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 <script>
-function toggleLoading(state){ document.body.style.cursor = state ? "wait" : "default"; }
-
-function createCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
-function drawRotated(srcCanvas,deg){
-  const rad=deg*Math.PI/180;
-  let w=srcCanvas.width,h=srcCanvas.height;
-  const rotated=(Math.abs(deg)%180===90);
-  const out=createCanvas(rotated?h:w,rotated?w:h);
+/* ===================== Utilidades Canvas ===================== */
+function toggleLoading(s){ document.body.style.cursor = s ? "wait" : "default"; }
+function createCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
+function drawRotated(src,deg){
+  const rad=deg*Math.PI/180, w=src.width, h=src.height;
+  const rot90 = (Math.abs(deg)%180===90);
+  const out=createCanvas(rot90?h:w, rot90?w:h);
   const ctx=out.getContext('2d');
   ctx.translate(out.width/2,out.height/2);
   ctx.rotate(rad);
-  ctx.drawImage(srcCanvas,-w/2,-h/2);
+  ctx.drawImage(src,-w/2,-h/2);
   return out;
 }
+
+/* ====== EXIF ====== */
 async function getExifOrientation(file){
   try{
-    const buf=await file.arrayBuffer();const view=new DataView(buf);
-    if(view.getUint16(0,false)!==0xFFD8)return null;
-    let offset=2;
-    while(offset<view.byteLength){
-      const marker=view.getUint16(offset,false);offset+=2;
+    const buf=await file.arrayBuffer();const v=new DataView(buf);
+    if(v.getUint16(0,false)!==0xFFD8) return null;
+    let off=2;
+    while(off<v.byteLength){
+      const marker=v.getUint16(off,false); off+=2;
       if(marker===0xFFE1){
-        const len=view.getUint16(offset,false);offset+=2;
-        if(view.getUint32(offset,false)!==0x45786966)return null;
-        offset+=6;const little=view.getUint16(offset,false)===0x4949;
-        offset+=2;const firstIFD=view.getUint32(offset,little);offset+=4;
-        let ifdOffset=(offset-4)+firstIFD;
-        const entries=view.getUint16(ifdOffset,little);ifdOffset+=2;
-        for(let i=0;i<entries;i++){
-          const entryOffset=ifdOffset+i*12;
-          const tag=view.getUint16(entryOffset,little);
-          if(tag===0x0112){
-            const val=view.getUint16(entryOffset+8,little);
-            return val;
-          }
-        }return null;
-      }else if((marker&0xFF00)!==0xFF00){break;}
-      else{const len=view.getUint16(offset,false);offset+=len;}
-    }return null;
-  }catch(_){return null;}
+        const len=v.getUint16(off,false); off+=2;
+        if(v.getUint32(off,false)!==0x45786966) return null;
+        off+=6; const little=v.getUint16(off,false)===0x4949;
+        off+=2; const firstIFD=v.getUint32(off,little); off+=4;
+        let ifdOff=(off-4)+firstIFD; const n=v.getUint16(ifdOff,little); ifdOff+=2;
+        for(let i=0;i<n;i++){ const e=ifdOff+i*12; const tag=v.getUint16(e,little);
+          if(tag===0x0112) return v.getUint16(e+8,little);
+        } return null;
+      } else if((marker&0xFF00)!==0xFF00) break;
+      else { const len=v.getUint16(off,false); off+=len; }
+    }
+    return null;
+  }catch(_){ return null; }
 }
-async function fileToCanvasWithExif(file){
-  const imgURL=URL.createObjectURL(file);
-  const img=await new Promise((res,rej)=>{
-    const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=imgURL;
-  });
-  let base=createCanvas(img.naturalWidth||img.width,img.naturalHeight||img.height);
+
+/* ====== OSD (detección de orientación) ====== */
+async function osdRotation(canvas){
+  try{
+    const { data } = await Tesseract.recognize(canvas,'osd');
+    // Tesseract devuelve "Rotate: 90 / 180 / 270 / 0"
+    const angle = (data && typeof data.orientation_degrees==="number")
+      ? data.orientation_degrees
+      : (data && data.rotate) ? data.rotate : 0;
+    return (angle||0);
+  }catch(_){ return 0; } // sin OSD, seguimos
+}
+
+/* ====== Recorte de márgenes blancos ====== */
+function autoCropWhitespace(src, thr=248, paddingPct=0.01){
+  const w=src.width, h=src.height, ctx=src.getContext('2d');
+  const img=ctx.getImageData(0,0,w,h).data;
+  let top=h, left=w, right=0, bottom=0;
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      const v = 0.299*img[i]+0.587*img[i+1]+0.114*img[i+2];
+      if(v < thr){ // no-blanco
+        if(x<left) left=x;
+        if(x>right) right=x;
+        if(y<top) top=y;
+        if(y>bottom) bottom=y;
+      }
+    }
+  }
+  if(right<=left || bottom<=top) return src; // nada que recortar
+  const pad = Math.floor(paddingPct*Math.max(w,h));
+  left=Math.max(0,left-pad); top=Math.max(0,top-pad);
+  right=Math.min(w-1,right+pad); bottom=Math.min(h-1,bottom+pad);
+
+  const out=createCanvas(right-left+1, bottom-top+1);
+  out.getContext('2d').drawImage(src,left,top,out.width,out.height,0,0,out.width,out.height);
+  return out;
+}
+
+/* ====== Preproceso contraste/binarizado suave ====== */
+function preprocess(canvas){
+  const w=canvas.width, h=canvas.height, ctx=canvas.getContext('2d');
+  const img=ctx.getImageData(0,0,w,h); const d=img.data;
+
+  // Gris + realce lineal
+  for(let i=0;i<d.length;i+=4){
+    let g = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    // stretch
+    g = Math.min(255, Math.max(0, (g-90)*1.4 + 128));
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  ctx.putImageData(img,0,0);
+
+  // Umbral Otsu simple (en navegador aproximamos)
+  const img2=ctx.getImageData(0,0,w,h); const d2=img2.data;
+  for(let i=0;i<d2.length;i+=4){
+    const g=d2[i]; const b = g>160 ? 255 : 0;
+    d2[i]=d2[i+1]=d2[i+2]=b;
+  }
+  ctx.putImageData(img2,0,0);
+  return canvas;
+}
+
+/* ====== Cargar imagen a canvas con EXIF y OSD ====== */
+async function fileToCanvasWithExifAndOSD(file){
+  // Cargar
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+  let base=createCanvas(img.naturalWidth||img.width, img.naturalHeight||img.height);
   base.getContext('2d').drawImage(img,0,0,base.width,base.height);
-  const orientation=await getExifOrientation(file);
-  if(orientation===6)base=drawRotated(base,90);
-  else if(orientation===8)base=drawRotated(base,-90);
-  else if(orientation===3)base=drawRotated(base,180);
-  if(base.height>base.width)base=drawRotated(base,90);
-  URL.revokeObjectURL(imgURL);
+
+  // EXIF
+  const exif=await getExifOrientation(file);
+  if(exif===6) base=drawRotated(base,90);
+  else if(exif===8) base=drawRotated(base,-90);
+  else if(exif===3) base=drawRotated(base,180);
+
+  // OSD (si aún vertical o dudoso)
+  if(base.height>base.width){
+    const angle = await osdRotation(base);
+    if(angle) base=drawRotated(base, 360 - angle);
+  }
+
+  // Forzar landscape si persiste vertical
+  if(base.height>base.width) base=drawRotated(base,90);
+
+  // Recorte márgenes y binarizado suave
+  base = autoCropWhitespace(base, 245, 0.01);
+  base = preprocess(base);
+
+  URL.revokeObjectURL(url);
   return base;
 }
 
-async function detectarTablaYCortarColumnas(baseCanvas){
-  const w=baseCanvas.width,h=baseCanvas.height;
-  const colN=[0.02*w,0.13*w];
-  const colDes=[0.24*w,0.79*w];
-  const colCant=[0.88*w,0.97*w];
-  const columnas=[
-    {nombre:"N°",rango:colN},
-    {nombre:"Descripción",rango:colDes},
-    {nombre:"Cant.",rango:colCant}
-  ];
+/* ===================== Extracción 3 columnas ===================== */
+/*
+   Las zonas se definen por porcentajes (x1..x2) sobre el ancho,
+   y un corte vertical común (y1..y2) sobre la altura de la tabla.
+   Ajustadas a tus cajas rojas de referencia.
+*/
+const COLS_PCT = {
+  numero:      [0.02, 0.135],   // N°
+  descripcion: [0.255, 0.815],  // Descripción
+  cantidad:    [0.885, 0.975]   // Cant.
+};
+// zona vertical donde vive la tabla
+const Y_TABLE = [0.16, 0.94];   // de 16% a 94% de alto
 
-  const resultados = [];
-
-  for(const col of columnas){
-    const cw=col.rango[1]-col.rango[0];
-    const ch=h*0.93;
-    const c=createCanvas(cw,ch);
-    c.getContext('2d').drawImage(baseCanvas,col.rango[0],h*0.05,cw,ch,0,0,cw,ch);
-    const { data:{ text } } = await Tesseract.recognize(c,'spa',{logger:m=>console.log(m.status)});
-    resultados.push(text.trim());
-  }
-
-  mostrarTabla(resultados);
+async function ocrRegion(canvas, x1,x2,y1,y2, lang='spa'){
+  const w=canvas.width, h=canvas.height;
+  const rx = Math.max(0, Math.floor(x1*w));
+  const ry = Math.max(0, Math.floor(y1*h));
+  const rw = Math.max(1, Math.floor((x2-x1)*w));
+  const rh = Math.max(1, Math.floor((y2-y1)*h));
+  const r=createCanvas(rw,rh);
+  r.getContext('2d').drawImage(canvas,rx,ry,rw,rh,0,0,rw,rh);
+  const { data:{ text } } = await Tesseract.recognize(r, lang, { logger:m=>{ if(m.status==='recognizing text') debug('OCR '+Math.round(m.progress*100)+'%'); }});
+  return text.trim();
 }
 
-function mostrarTabla(textos){
-  const [colN,colDes,colCant]=textos.map(t=>t.split(/\n+/).filter(Boolean));
-  const tbody=document.querySelector("#tablaOCR tbody");
-  tbody.innerHTML="";
-  const filas=Math.max(colN.length,colDes.length,colCant.length);
+function cleanLines(t){
+  return t
+    .split(/\n+/)
+    .map(s=>s.replace(/[|•··●]/g,'').trim())
+    .filter(Boolean);
+}
+
+function toNumericOrBlank(s){
+  const m = s.replace(/[^\d\-.,]/g,'').match(/\d+/g);
+  if(!m) return '';
+  return m[m.length-1]; // último bloque numérico (evita arrastres)
+}
+
+function debug(msg){ document.getElementById('debugInfo').textContent = msg; }
+
+/* Une las tres columnas por fila, manteniendo longitudes coherentes */
+function renderTable(colN_raw, colD_raw, colC_raw){
+  // Limpiezas
+  let colN = cleanLines(colN_raw).filter(l=>/^\d+$/.test(l) || /^N°$/i.test(l)===false);
+  let colD = cleanLines(colD_raw);
+  let colC = cleanLines(colC_raw).map(toNumericOrBlank);
+
+  // Si la descripción tiene más filas que N°, asumimos saltos de línea; intentamos truncar por el número de Cant.
+  const filas = Math.max(colN.length, colD.length, colC.length);
+
+  const tbody=document.querySelector('#tablaOCR tbody');
+  tbody.innerHTML='';
   for(let i=0;i<filas;i++){
-    const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td>${colN[i]||''}</td>
-      <td>${colDes[i]||''}</td>
-      <td>${colCant[i]||''}</td>`;
+    const n = colN[i] || '';
+    const d = colD[i] || '';
+    const c = colC[i] || '';
+    // Evitar filas basura (sin descripción)
+    if(!d) continue;
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${n}</td><td>${d}</td><td>${c}</td>`;
     tbody.appendChild(tr);
   }
 }
 
+async function detectarTablaYCortarColumnas(baseCanvas){
+  debug('Detectando columnas…');
+
+  // Coordenadas proporcionales
+  const [y1,y2] = Y_TABLE;
+  const [nx1,nx2] = COLS_PCT.numero;
+  const [dx1,dx2] = COLS_PCT.descripcion;
+  const [cx1,cx2] = COLS_PCT.cantidad;
+
+  // OCR por columna (mismo recorte vertical)
+  const [tN, tD, tC] = await Promise.all([
+    ocrRegion(baseCanvas, nx1,nx2, y1,y2, 'spa'),
+    ocrRegion(baseCanvas, dx1,dx2, y1,y2, 'spa'),
+    ocrRegion(baseCanvas, cx1,cx2, y1,y2, 'spa')
+  ]);
+
+  renderTable(tN, tD, tC);
+}
+
+/* ===================== Flujo principal ===================== */
 async function loadAndDraw(file){
   try{
-    toggleLoading(true);
-    const baseCanvas=await fileToCanvasWithExif(file);
+    toggleLoading(true); debug('Cargando imagen…');
+    const baseCanvas = await fileToCanvasWithExifAndOSD(file);
+
     const preview=document.getElementById('canvas');
-    preview.width=baseCanvas.width;preview.height=baseCanvas.height;
+    preview.width=baseCanvas.width; preview.height=baseCanvas.height;
     preview.getContext('2d').drawImage(baseCanvas,0,0);
+
     await detectarTablaYCortarColumnas(baseCanvas);
+    debug('Listo.');
   }catch(err){
-    alert('Error procesando imagen.');
     console.error(err);
+    alert('Error procesando imagen.');
+    debug('Error.');
   }finally{
     toggleLoading(false);
   }
 }
 
+/* ===================== Eventos UI ===================== */
 document.getElementById('fileBtn').onclick=()=>document.getElementById('file').click();
-document.getElementById('file').onchange=e=>{
-  const f=e.target.files?.[0];if(f)loadAndDraw(f);
-};
+document.getElementById('file').onchange=e=>{ const f=e.target.files?.[0]; if(f) loadAndDraw(f); };
 document.getElementById('btnClear').onclick=()=>{
-  document.getElementById('canvas').getContext('2d').clearRect(0,0,9999,9999);
-  document.querySelector("#tablaOCR tbody").innerHTML="";
+  const c=document.getElementById('canvas'); c.getContext('2d').clearRect(0,0,c.width,c.height);
+  document.querySelector('#tablaOCR tbody').innerHTML='';
+  document.getElementById('debugInfo').textContent='';
 };
 </script>
 
