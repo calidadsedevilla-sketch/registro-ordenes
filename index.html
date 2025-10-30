@@ -1,0 +1,99 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Calidad Sede Villa – Smart OCR v4.2</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="icons/icon-192.png" type="image/png"/>
+<meta name="theme-color" content="#0e141b"/>
+<style>
+:root{--bg:#0b1220;--card:#101922;--ink:#eaf2ff;--muted:#a9b6c5;--brand:#4cc9f0;--line:#273446;--ok:#22c55e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Inter}
+header{position:sticky;top:0;z-index:20;background:#0b1220cc;border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.wrap{max-width:980px;margin:0 auto;padding:14px}.grid{display:grid;gap:12px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+button{appearance:none;border:1px solid #405066;border-radius:12px;padding:9px 12px;background:#0f1a25;color:var(--ink);cursor:pointer}
+button.ok{background:var(--ok);color:#05240e;border-color:#0b7a3a}.badge{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#0b1118;color:var(--muted)}
+.preview{width:100%;border:2px dashed #2b3a4f;border-radius:10px;background:#0a1220}canvas{max-width:100%;display:block;border-radius:10px}
+.item{display:grid;grid-template-columns:70px 1fr 92px;gap:10px;align-items:center;background:#0b1118;border:1px solid var(--line);padding:10px;border-radius:12px}
+.cell{background:#0a1219;border:1px solid var(--line);padding:8px;border-radius:10px;min-height:44px}
+.hint{font-size:12px;color:var(--muted)}h1{margin:6px 2px;font-size:20px}.sub{color:var(--muted);font-size:13px;margin-bottom:10px}
+</style></head><body>
+<header><div class="wrap"><h1>OCR – Órdenes de Venta (Smart v4.2 · AutoAlign)</h1>
+<div class="sub">Columnas <b>N°</b>, <b>Descripción</b>, <b>Cant.</b> con OpenCV.js + Tesseract.js (spa). Autocorrección de perspectiva y reintento.</div></div></header>
+<main class="wrap grid"><section class="card">
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<label for="file" class="ok" style="display:inline-block">📷 Tomar foto / Subir imagen</label>
+<input id="file" type="file" accept="image/*" capture="environment" style="display:none"/>
+<button id="btnDetect">🔎 Detectar tabla y cortar</button>
+<button id="btnOCR">🧠 OCR por columnas</button>
+<button id="btnClear">🧹 Limpiar</button><span class="badge" id="ver">Smart v4.2</span></div>
+<div class="grid" style="grid-template-columns:1fr 1fr"><div>
+<div class="badge">Vista previa (con autocorrección)</div>
+<canvas id="canvas" class="preview" width="10" height="10"></canvas>
+<div class="hint">Tip: encuadra principalmente la tabla.</div></div>
+<div><div class="badge">Recortes de columnas</div>
+<div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+<canvas id="col1" class="preview" width="10" height="10"></canvas>
+<canvas id="col3" class="preview" width="10" height="10"></canvas>
+<canvas id="col5" class="preview" width="10" height="10"></canvas></div>
+<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">
+<button id="btnConfirm" class="ok">✅ Confirmar columnas</button><span id="colsInfo" class="badge">Columnas: –</span></div>
+<div id="results" class="grid" style="margin-top:10px"></div></div></div></section>
+<p class="hint">Privacidad: todo se procesa en tu navegador.</p></main>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script async src="https://docs.opencv.org/4.x/opencv.js" onload="cvReady()" onerror="cvFail()"></script>
+<script>
+let imgBitmap=null, tableMask=null, colCrops={};
+const canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d');
+const c1=document.getElementById('col1').getContext('2d');
+const c3=document.getElementById('col3').getContext('2d');
+const c5=document.getElementById('col5').getContext('2d');
+const resultsEl=document.getElementById('results');
+file.onchange=async e=>{const f=e.target.files[0]; if(!f)return; const bmp=await createImageBitmap(f); imgBitmap=bmp; drawToCanvas(bmp);};
+btnClear.onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);['col1','col3','col5'].forEach(id=>{const cc=document.getElementById(id).getContext('2d');cc.canvas.width=10;cc.canvas.height=10;cc.clearRect(0,0,10,10)});resultsEl.innerHTML='';colCrops={};tableMask=null;};
+btnDetect.onclick=()=>{if(!imgBitmap){alert('Primero selecciona una imagen.');return;} detectAndCut();};
+btnConfirm.onclick=()=>{ if(!tableMask){alert('Aún no se han recortado columnas.');return;} colsInfo.textContent='Columnas: N° · Desc. · Cant.';};
+btnOCR.onclick=async ()=>{ if(!Object.keys(colCrops).length){alert('Primero detecta la tabla y confirma las columnas.');return;} resultsEl.innerHTML='<div class="badge">Procesando OCR…</div>'; const data=await ocrColumns(colCrops); renderResults(data);};
+function drawToCanvas(b){const maxW=1500, s=Math.min(1,maxW/b.width); canvas.width=Math.round(b.width*s); canvas.height=Math.round(b.height*s); ctx.drawImage(b,0,0,canvas.width,canvas.height);}
+function cvReady(){console.log('OpenCV listo')} function cvFail(){console.warn('OpenCV no cargó')}
+function detectAndCut(){
+  const src=cv.imread(canvas); let gray=new cv.Mat(); cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+  let blur=new cv.Mat(); cv.bilateralFilter(gray,blur,9,75,75);
+  let bw=new cv.Mat(); cv.adaptiveThreshold(blur,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,21,8);
+  let contours=new cv.MatVector(), hierarchy=new cv.Mat(); cv.findContours(bw,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+  let tableQuad=null, areaMax=0;
+  for(let i=0;i<contours.size();i++){const cnt=contours.get(i);const area=cv.contourArea(cnt); if(area<src.rows*src.cols*0.1)continue; const peri=cv.arcLength(cnt,true); const approx=new cv.Mat(); cv.approxPolyDP(cnt,approx,0.02*peri,true); if(approx.rows===4 && area>areaMax){areaMax=area; tableQuad=approx.clone();} cnt.delete();}
+  if(!tableQuad){
+    const cx=Math.floor(src.cols*0.1), cy=Math.floor(src.rows*0.1); const roi=src.roi(new cv.Rect(cx,cy,Math.floor(src.cols*0.8),Math.floor(src.rows*0.8)));
+    cv.cvtColor(roi,gray,cv.COLOR_RGBA2GRAY); cv.bilateralFilter(gray,blur,9,75,75); cv.adaptiveThreshold(blur,bw,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY_INV,21,8);
+    contours=new cv.MatVector(); hierarchy=new cv.Mat(); cv.findContours(bw,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
+    for(let i=0;i<contours.size();i++){const cnt=contours.get(i);const area=cv.contourArea(cnt); const peri=cv.arcLength(cnt,true); const approx=new cv.Mat(); cv.approxPolyDP(cnt,approx,0.02*peri,true); if(approx.rows===4 && area>areaMax){ for(let j=0;j<4;j++){approx.intPtr(j,0)[0]+=cx; approx.intPtr(j,0)[1]+=cy;} areaMax=area; tableQuad=approx.clone();} cnt.delete();}
+  }
+  if(!tableQuad){ cleanup(); src.delete(); gray.delete(); blur.delete(); bw.delete(); alert('No se pudo detectar la tabla. Intenta encuadrar mejor la tabla.'); return; }
+  const pts=[]; for(let i=0;i<4;i++){ pts.push({x:tableQuad.intPtr(i,0)[0], y:tableQuad.intPtr(i,0)[1]}); }
+  pts.sort((a,b)=>a.y-b.y); const top=pts.slice(0,2).sort((a,b)=>a.x-b.x); const bottom=pts.slice(2).sort((a,b)=>a.x-b.x);
+  const tl=top[0], tr=top[1], bl=bottom[0], br=bottom[1];
+  const W=Math.round(Math.max(Math.hypot(tr.x-tl.x,tr.y-tl.y),Math.hypot(br.x-bl.x,br.y-bl.y)));
+  const H=Math.round(Math.max(Math.hypot(bl.x-tl.x,bl.y-tl.y),Math.hypot(br.x-tr.x,br.y-tr.y)));
+  const srcTri=cv.matFromArray(4,1,cv.CV_32FC2,[tl.x,tl.y,tr.x,tr.y,br.x,br.y,bl.x,bl.y]);
+  const dstTri=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,W,0,W,H,0,H]);
+  const M=cv.getPerspectiveTransform(srcTri,dstTri); let warped=new cv.Mat(); cv.warpPerspective(src,warped,M,new cv.Size(W,H));
+  cv.imshow('canvas',warped);
+  const c1w=Math.round(W*0.07), c5w=Math.round(W*0.10); const c3x=Math.round(W*0.15), c3w=Math.round(W*0.70);
+  function cropTo(ctx2d,x,y,w,h){ const roi=warped.roi(new cv.Rect(x,y,w,Math.max(1,H-10))); const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=roi.rows; cv.imshow(tmp,roi); ctx2d.canvas.width=w; ctx2d.canvas.height=roi.rows; ctx2d.drawImage(tmp,0,0); roi.delete(); }
+  cropTo(c1,5,5,c1w,H-10); cropTo(c3,c3x,5,c3w,H-10); cropTo(c5,W-c5w-5,5,c5w,H-10);
+  colCrops={c1:document.getElementById('col1'), c3:document.getElementById('col3'), c5:document.getElementById('col5')}; tableMask=warped;
+  gray.delete(); blur.delete(); bw.delete(); contours.delete(); hierarchy.delete(); tableQuad.delete(); src.delete();
+}
+async function ocrColumns(cols){
+  const worker=await Tesseract.createWorker('spa'); const out=[];
+  let {data:{text:numText}}=await worker.recognize(cols.c1.toDataURL()); numText=numText.replace(/[^0-9\n]+/g,'').split(/\n+/).filter(Boolean);
+  let {data:{text:descText}}=await worker.recognize(cols.c3.toDataURL()); const descLines=descText.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  let {data:{text:cantText}}=await worker.recognize(cols.c5.toDataURL()); const cantLines=cantText.replace(/[^0-9\n]+/g,'').split(/\n+/).filter(Boolean);
+  const n=Math.max(numText.length,descLines.length,cantLines.length);
+  for(let i=0;i<n;i++){ out.push({numero:parseInt(numText[i]||'',10)||null, descripcion:(descLines[i]||'').replace(/[|]+/g,'').trim(), cantidad:parseInt(cantLines[i]||'',10)||null}); }
+  await worker.terminate(); return out.filter(r=>r.numero!==null || r.descripcion || r.cantidad!==null);
+}
+function renderResults(items){ resultsEl.innerHTML=''; if(!items.length){resultsEl.innerHTML='<div class="hint">No se detectaron filas válidas.</div>'; return;} items.forEach(r=>{const el=document.createElement('div'); el.className='item'; el.innerHTML=`<div class="cell"><b>N°</b><br>${r.numero??''}</div><div class="cell"><b>Descripción</b><br>${escapeHTML(r.descripcion)}</div><div class="cell"><b>Cant.</b><br>${r.cantidad??''}</div>`; resultsEl.appendChild(el);});}
+function escapeHTML(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));}
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
+</script></body></html>
