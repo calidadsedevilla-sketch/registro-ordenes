@@ -410,6 +410,149 @@
       await new Promise(r=>setTimeout(r,60));
     }
   }
-  </script>
+    <script>
+/* ==========================
+   ROTACIÓN FIJA SOLO HORIZONTAL
+   - Lee EXIF (si existe) para 3/6/8.
+   - Fuerza apaisado (si alto > ancho, rota 90°).
+   - Si EXIF dice 180° (3), rota 180°.
+   ========================== */
+
+/* Helpers de canvas */
+function createCanvas(w,h){
+  const c=document.createElement('canvas');
+  c.width=w; c.height=h;
+  return c;
+}
+function drawRotated(srcCanvas, deg){
+  const rad = deg * Math.PI/180;
+  let w = srcCanvas.width, h = srcCanvas.height;
+  // 90 o 270: se intercambian dimensiones
+  const rotated = (Math.abs(deg)%180===90);
+  const out = createCanvas(rotated? h : w, rotated? w : h);
+  const ctx = out.getContext('2d');
+  ctx.translate(out.width/2, out.height/2);
+  ctx.rotate(rad);
+  ctx.drawImage(srcCanvas, -w/2, -h/2);
+  return out;
+}
+
+/* Lee EXIF Orientation  (devuelve 1,3,6,8 o null) */
+async function getExifOrientation(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const view = new DataView(buf);
+    // JPG?
+    if (view.getUint16(0,false) !== 0xFFD8) return null;
+    let offset = 2;
+    while (offset < view.byteLength){
+      const marker = view.getUint16(offset, false); offset += 2;
+      if (marker === 0xFFE1){ // APP1 (EXIF)
+        const len = view.getUint16(offset, false); offset += 2;
+        // 'Exif\0\0'
+        if (view.getUint32(offset, false) !== 0x45786966) return null;
+        offset += 6;
+        const little = view.getUint16(offset, false) === 0x4949; // II
+        offset += 2; // TIFF magic
+        const firstIFD = view.getUint32(offset, little); offset += 4;
+        let ifdOffset = (offset - 4) + firstIFD;
+        const entries = view.getUint16(ifdOffset, little); ifdOffset += 2;
+        for (let i=0;i<entries;i++){
+          const entryOffset = ifdOffset + i*12;
+          const tag = view.getUint16(entryOffset, little);
+          if (tag===0x0112){ // Orientation
+            const val = view.getUint16(entryOffset+8, little);
+            return val; // 1,3,6,8
+          }
+        }
+        return null;
+      } else if ((marker & 0xFF00) !== 0xFF00){
+        break;
+      } else {
+        const len = view.getUint16(offset, false); offset += len;
+      }
+    }
+    return null;
+  }catch(_){ return null; }
+}
+
+/* Carga el archivo en un canvas base, respetando EXIF */
+async function fileToCanvasWithExif(file){
+  // 1) Crear canvas base desde la imagen
+  const imgURL = URL.createObjectURL(file);
+  const img = await new Promise((resolve,reject)=>{
+    const im = new Image();
+    im.onload = ()=> resolve(im);
+    im.onerror = reject;
+    im.src = imgURL;
+  });
+  let base = createCanvas(img.naturalWidth || img.width, img.naturalHeight || img.height);
+  base.getContext('2d').drawImage(img, 0,0, base.width, base.height);
+
+  // 2) Leer EXIF Orientation (si hay)
+  const orientation = await getExifOrientation(file); // 1,3,6,8 o null
+
+  // 3) Ajustar por EXIF (6=rotar 90; 8=rotar -90; 3=180)
+  if (orientation===6) base = drawRotated(base, 90);
+  else if (orientation===8) base = drawRotated(base, -90);
+  else if (orientation===3) base = drawRotated(base, 180);
+
+  // 4) Forzar SOLO HORIZONTAL: si aún está vertical, rotar 90°
+  if (base.height > base.width){
+    base = drawRotated(base, 90);
+  }
+
+  // 5) Suavizar (escala de grises + boost contraste leve)
+  const ctx = base.getContext('2d');
+  const imgData = ctx.getImageData(0,0,base.width,base.height);
+  const d = imgData.data;
+  const contrast = 1.2;
+  for (let i=0;i<d.length;i+=4){
+    const r=d[i], g=d[i+1], b=d[i+2];
+    let y = 0.2126*r + 0.7152*g + 0.0722*b;
+    y = ((y/255 - .5)*contrast + .5)*255;
+    const v = Math.max(0, Math.min(255, y));
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(imgData,0,0);
+
+  URL.revokeObjectURL(imgURL);
+  return base;
+}
+
+/* Punto de entrada que usas al seleccionar/tomar foto */
+async function loadAndDraw(file){
+  try{
+    toggleLoading(true); // si ya tienes esta función
+    const baseCanvas = await fileToCanvasWithExif(file);
+
+    // Pinta la vista previa en tu <canvas id="canvas">
+    const preview = document.getElementById('canvas');
+    preview.width  = baseCanvas.width;
+    preview.height = baseCanvas.height;
+    const pctx = preview.getContext('2d');
+    pctx.drawImage(baseCanvas, 0,0);
+
+    // ← desde aquí llamas a tu pipeline existente:
+    // detectarTablaYCortarColumnas(baseCanvas)
+    // render de recortes, etc.
+  }catch(err){
+    alert('No se pudo preparar la imagen. Intenta nuevamente.');
+    console.error(err);
+  }finally{
+    toggleLoading(false);
+  }
+}
+
+/* Conecta el input file con loadAndDraw */
+document.getElementById('file').addEventListener('change', async (e)=>{
+  const f = e.target.files?.[0];
+  if (!f) return;
+  await loadAndDraw(f);
+  // Habilita tus botones de "Detectar tabla" y "OCR por columnas"
+  document.getElementById('btnDetect')?.removeAttribute('disabled');
+  document.getElementById('btnOcrCols')?.removeAttribute('disabled');
+});
+</script>
 </body>
 </html>
