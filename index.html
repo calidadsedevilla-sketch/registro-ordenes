@@ -3,20 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OCR – Órdenes de Venta (Smart v4.9.0)</title>
+<title>OCR – Órdenes de Venta (Smart v4.9.1)</title>
 <style>
 :root{
   --accent:#00ff88;
   --bg:#0b1220;
   --text:#f5f5f5;
-  --muted:#999;
+  --muted:#aaa;
 }
 body{
   font-family:Arial,Helvetica,sans-serif;
   background:var(--bg);
   color:var(--text);
   margin:0;
-  padding:0;
   text-align:center;
 }
 header{padding:12px;}
@@ -24,7 +23,7 @@ button{
   background:var(--accent);
   color:#000;
   border:none;
-  border-radius:8px;
+  border-radius:10px;
   padding:10px 16px;
   margin:6px;
   font-size:15px;
@@ -38,14 +37,17 @@ button.ghost{
 video{
   width:100%;
   height:auto;
-  border-radius:8px;
   object-fit:cover;
-  transform:rotate(0deg);
+  border-radius:8px;
+}
+#cameraBox{
+  position:relative;
+  display:inline-block;
+  margin-top:10px;
 }
 #overlay{
   position:absolute;
-  top:0;left:0;
-  width:100%;height:100%;
+  top:0;left:0;width:100%;height:100%;
   pointer-events:none;
 }
 #frame{
@@ -91,31 +93,32 @@ footer{margin:20px;font-size:12px;color:var(--muted);}
 <body>
 
 <header>
-  <h2>OCR – Órdenes de Venta (Smart v4.9.0)</h2>
-  <div>Cámara horizontal (botón volumen arriba) + OCR 2 columnas</div>
+  <h2>OCR – Órdenes de Venta (Smart v4.9.1)</h2>
+  <div>Versión 4.9.1 – Captura centrada, 2 columnas (Descripción / Cantidad)</div>
 </header>
 
 <main>
-  <button id="btnStart">📷 Tomar foto / Subir imagen</button>
-  <button id="btnClear" class="ghost">🧹 Limpiar</button>
-
-  <div style="position:relative;display:inline-block;margin-top:10px;">
-    <video id="video" autoplay playsinline></video>
-    <div id="overlay">
-      <div id="frame">
-        <div id="handle"></div>
-      </div>
-    </div>
+  <div>
+    <button id="btnStart">📷 Tomar foto / Subir imagen</button>
+    <button id="btnClear" class="ghost">🧹 Limpiar</button>
+    <button id="btnDownload" class="ghost">⬇️ Descargar previa</button>
   </div>
 
-  <h3>Vista previa (recorte exacto del marco)</h3>
+  <div id="cameraBox">
+    <video id="video" autoplay playsinline></video>
+    <div id="overlay"><div id="frame"><div id="handle"></div></div></div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <button id="btnCapture">📸 Capturar</button>
+  </div>
+
+  <h3>Vista previa (centrada y horizontal)</h3>
   <canvas id="canvasPreview"></canvas>
 
   <h3>Tabla OCR generada</h3>
   <table id="tablaOCR">
-    <thead>
-      <tr><th>Descripción</th><th>Cantidades</th></tr>
-    </thead>
+    <thead><tr><th>Descripción</th><th>Cantidades</th></tr></thead>
     <tbody></tbody>
   </table>
 </main>
@@ -124,19 +127,27 @@ footer{margin:20px;font-size:12px;color:var(--muted);}
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 <script>
-// === Inicialización de cámara y marco ===
+// ================= CONFIGURACIÓN INICIAL =================
 const video=document.getElementById('video');
 const frame=document.getElementById('frame');
 const handle=document.getElementById('handle');
-let stream,frameHeight=0.8; // proporción inicial de altura
+const canvasPrev=document.getElementById('canvasPreview');
+let stream,frameHeight=0.8; // proporción inicial
 
-// Activar cámara trasera
+// === Cámara trasera (horizontal) ===
 async function startCamera(){
-  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-  video.srcObject=stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"environment",width:{ideal:1920},height:{ideal:1080}},
+      audio:false
+    });
+    video.srcObject=stream;
+  }catch(e){
+    alert("No se pudo acceder a la cámara.");
+  }
 }
 
-// Redimensionar marco con el tirador inferior
+// === Redimensionar marco inferior ===
 let resizing=false,startY=0;
 handle.addEventListener('mousedown',e=>{resizing=true;startY=e.clientY;});
 window.addEventListener('mouseup',()=>resizing=false);
@@ -148,47 +159,44 @@ window.addEventListener('mousemove',e=>{
   startY=e.clientY;
 });
 
-// === Captura del área exacta dentro del marco verde ===
-async function captureAndProcess(){
+// === Capturar el área exacta dentro del marco verde ===
+async function captureImage(){
   const w=video.videoWidth,h=video.videoHeight;
+  if(!w||!h){alert("Cámara no lista.");return;}
   const c=document.createElement('canvas');
   const ctx=c.getContext('2d');
   c.width=w;c.height=h;
   ctx.drawImage(video,0,0,w,h);
 
-  // coordenadas proporcionales exactas al marco
   const fx=0.04*w;
   const fy=(1-frameHeight)/2*h;
   const fw=0.92*w;
   const fh=frameHeight*h;
   const rec=ctx.getImageData(fx,fy,fw,fh);
 
-  // crear recorte
+  // recorte exacto
   const crop=document.createElement('canvas');
   crop.width=fw;crop.height=fh;
   crop.getContext('2d').putImageData(rec,0,0);
 
-  // mostrar vista previa
-  const prev=document.getElementById('canvasPreview');
-  prev.width=fw;prev.height=fh;
-  prev.getContext('2d').putImageData(rec,0,0);
+  // centrar horizontalmente en vista previa
+  canvasPrev.width=fw;canvasPrev.height=fh;
+  canvasPrev.getContext('2d').drawImage(crop,0,0);
 
-  // OCR con solo columnas 1 (desc) y 3 (cant)
+  localStorage.setItem('previa_ocr',canvasPrev.toDataURL('image/jpeg',0.92));
   await procesarOCR(crop);
 }
 
-// === OCR principal ===
+// === OCR 2 columnas (Descripción y Cantidad) ===
 async function procesarOCR(canvas){
   const {data:{text}}=await Tesseract.recognize(canvas,'spa',{logger:m=>console.log(m.status)});
   const lineas=text.split('\n').map(l=>l.trim()).filter(Boolean);
 
-  // Filtrado: solo mantener líneas que parecen tener número al final
   const data=lineas.map(l=>{
     const match=l.match(/(.*?)(\d{1,4})$/);
     if(match)return{desc:match[1].trim(),cant:match[2].trim()};
   }).filter(Boolean);
 
-  // Mostrar tabla
   const tbody=document.querySelector('#tablaOCR tbody');
   tbody.innerHTML="";
   data.forEach(r=>{
@@ -198,16 +206,27 @@ async function procesarOCR(canvas){
   });
 }
 
+// === Descargar previa guardada ===
+document.getElementById('btnDownload').onclick=()=>{
+  const d=localStorage.getItem('previa_ocr');
+  if(!d){alert("No hay vista previa guardada.");return;}
+  const a=document.createElement('a');
+  a.href=d;a.download='previa_ocr.jpg';
+  a.click();
+};
+
 // === Botones ===
-document.getElementById('btnStart').onclick=async()=>{
-  await startCamera();
-  captureAndProcess(); // captura instantánea
-};
+document.getElementById('btnStart').onclick=()=>startCamera();
+document.getElementById('btnCapture').onclick=()=>captureImage();
 document.getElementById('btnClear').onclick=()=>{
-  const ctx=document.getElementById('canvasPreview').getContext('2d');
-  ctx.clearRect(0,0,9999,9999);
+  const ctx=canvasPrev.getContext('2d');
+  ctx.clearRect(0,0,canvasPrev.width,canvasPrev.height);
   document.querySelector('#tablaOCR tbody').innerHTML="";
+  localStorage.removeItem('previa_ocr');
 };
+
+// === Detener cámara al cerrar página ===
+window.addEventListener('beforeunload',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());});
 </script>
 </body>
 </html>
