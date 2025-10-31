@@ -3,21 +3,20 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Calidad Sede Villa – OCR Horizontal v4.8.7</title>
+  <title>OCR – Órdenes de Venta (Smart v4.8.8)</title>
   <meta name="theme-color" content="#ffffff"/>
 
-  <!-- Smart OCR v4.8.7
+  <!-- Smart OCR v4.8.8
        - Rotación fija -90° (modo horizontal, botón volumen arriba)
        - Deskew centrado + crop a contenido
+       - Marco verde ajustable con 8 tiradores (cuadrados gris claro)
+       - Captura estricta al área seleccionada
        - OCR 3 columnas (N°, Descripción, Cantidades)
-       - Recorte vertical Y_TABLE=[0.20,0.93]
-       - Sharpen + contraste
        - Guarda vista previa en localStorage + descarga
   -->
-
   <style>
-    :root{color-scheme:light dark;--accent:#0b1220;--muted:#777;--bg:#fff;--text:#222;--card:#f7f7f7;}
-    @media (prefers-color-scheme:dark){:root{--bg:#0b1220;--text:#f2f2f2;--muted:#aaa;--card:#18212e;}}
+    :root{color-scheme:light dark;--accent:#0b1220;--muted:#777;--bg:#fff;--text:#222;--card:#f7f7f7;--green:#00ff7b;--handle:#ddd;}
+    @media (prefers-color-scheme:dark){:root{--bg:#0b1220;--text:#f2f2f2;--muted:#aaa;--card:#18212e;--handle:#cfcfcf;}}
     *{box-sizing:border-box}
     body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:var(--text)}
     header{background:var(--card);border-bottom:2px solid var(--accent);padding:10px 15px;text-align:center}
@@ -36,11 +35,24 @@
     /* --- UI cámara a pantalla completa --- */
     #cameraModal{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center;z-index:9999}
     .cam-wrap{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
-    #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;touch-action:none}
+
+    /* Marco verde ajustable */
     .crop-box{
       position:absolute;left:50%;top:50%;width:90%;height:90%;transform:translate(-50%,-50%);
-      border:3px solid #00ff7b;border-radius:14px;box-shadow:0 0 0 2px rgba(0,0,0,.35),0 0 18px rgba(0,255,123,.25);
+      border:3px solid var(--green);border-radius:14px;box-shadow:0 0 0 2px rgba(0,0,0,.35),0 0 18px rgba(0,255,123,.25);
+      touch-action:none;
     }
+    .handle{position:absolute;width:16px;height:16px;background:var(--handle);border:1px solid #999;border-radius:3px}
+    /* Esquinas */
+    .h-tl{left:-8px;top:-8px} .h-tr{right:-8px;top:-8px}
+    .h-bl{left:-8px;bottom:-8px} .h-br{right:-8px;bottom:-8px}
+    /* Lados */
+    .h-t{left:calc(50% - 8px);top:-8px}
+    .h-b{left:calc(50% - 8px);bottom:-8px}
+    .h-l{left:-8px;top:calc(50% - 8px)}
+    .h-r{right:-8px;top:calc(50% - 8px)}
+
     .cam-controls{position:absolute;left:0;right:0;bottom:22px;display:flex;gap:14px;justify-content:center;align-items:center}
     #snapBtn{font-size:20px;padding:20px 34px;border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.4);backdrop-filter:blur(8px);background:rgba(11,18,32,.92)}
     #closeBtn{position:absolute;top:16px;right:16px;background:rgba(11,18,32,.72);padding:8px 12px;border-radius:12px}
@@ -49,8 +61,8 @@
 </head>
 <body>
   <header>
-    <h1>Calidad Sede Villa – OCR Horizontal</h1>
-    <span class="version">Versión 4.8.7 – Cámara trasera calibrada</span>
+    <h1>OCR – Órdenes de Venta (Smart v4.8.8)</h1>
+    <span class="version">Cámara trasera calibrada – Marco ajustable</span>
   </header>
 
   <main>
@@ -79,7 +91,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 
   <script>
-    /* ===== Utilidades canvas ===== */
+    /* ==================== Utilidades canvas ==================== */
     function toggleLoading(s){document.body.style.cursor=s?"wait":"default";}
     function createCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
     function putCanvas(src){const p=document.getElementById('canvas');p.width=src.width;p.height=src.height;p.getContext('2d').drawImage(src,0,0);}
@@ -90,8 +102,8 @@
     }
     function debug(t){document.getElementById('debugInfo').textContent=t||''}
 
-    /* ===== Preprocesado: gris + contraste + sharpen ===== */
-    function preprocessSoft(canvas){ // escala gris + leve boost contraste
+    /* ==================== Preprocesado ==================== */
+    function preprocessSoft(canvas){ // gris + leve contraste
       const ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,canvas.width,canvas.height),d=img.data;
       for(let i=0;i<d.length;i+=4){let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; g=(g-10)*1.18; g=Math.max(0,Math.min(255,g)); d[i]=d[i+1]=d[i+2]=g;}
       ctx.putImageData(img,0,0); return canvas;
@@ -108,19 +120,19 @@
       ctx.putImageData(out,0,0); return canvas;
     }
 
-    /* ===== Deskew por barrido y crop a contenido ===== */
-    function projectionScore(rot){ // varianza de proyección horizontal
+    /* ==================== Deskew & crop ==================== */
+    function projectionScore(rot){ // varianza proyección horizontal
       const w=rot.width,h=rot.height,ctx=rot.getContext('2d'),img=ctx.getImageData(0,0,w,h).data,sum=new Float32Array(h);
       for(let y=0;y<h;y++){let acc=0; for(let x=0;x<w;x++){acc+=img[(y*w+x)*4]} sum[y]=acc;}
       let mean=0; for(let y=0;y<h;y++) mean+=sum[y]; mean/=h;
       let v=0; for(let y=0;y<h;y++){const d=sum[y]-mean; v+=d*d;} return v/h;
     }
-    function deskewBySweep(canvas){ // barrido fino ±7°
+    function deskewBySweep(canvas){ // barrido ±7°
       let best=canvas, bestScore=-1, bestAngle=0;
       for(let a=-7;a<=7;a+=0.5){const r=drawRotated(canvas,a);const s=projectionScore(r);if(s>bestScore){bestScore=s;best=r;bestAngle=a;}}
       debug(`Rotación fija: -90° | Deskew: ${bestAngle.toFixed(1)}°`); return best;
     }
-    function cropToContent(canvas, threshold=250){ // elimina bordes blancos/negros
+    function cropToContent(canvas, threshold=250){ // elimina bordes y centra
       const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,w,h).data;
       let top=0,bottom=h-1,left=0,right=w-1;
       for(let y=0;y<h;y++){let ok=false;for(let x=0;x<w;x++){if(img[(y*w+x)*4]<threshold){ok=true;break}} if(ok){top=y;break}}
@@ -131,16 +143,11 @@
       const out=createCanvas(cw,ch); out.getContext('2d').drawImage(canvas,left,top,cw,ch,0,0,cw,ch); return out;
     }
 
-    /* ===== Config OCR (rango vertical y columnas) ===== */
-    const Y_TABLE=[0.20,0.93]; // recorte vertical fino v4.8.7
-    const COLS_PCT={numero:[0.03,0.14],descripcion:[0.22,0.80],cantidad:[0.86,0.97]};
-
-    /* ===== Utils OCR ===== */
+    /* ==================== Config OCR ==================== */
+    const COLS_PCT={numero:[0.03,0.14],descripcion:[0.22,0.80],cantidad:[0.86,0.97]}; // porcentajes dentro del ROI
     function cleanLines(t){return t.split(/\n+/).map(s=>s.replace(/[|•·●]/g,'').trim()).filter(Boolean);}
     function toNumericOrBlank(s){const m=s.replace(/[^\d\-.,]/g,'').match(/\d+([.,]\d+)?/g);return m?m[m.length-1]:'';}
     function filterHeaders(s){return !/^(cliente|moneda|fecha|forma de pago|comentarios|orden|vendedor|ruc|u\.m\.?|um)$/i.test(s);}
-
-    /* ===== Render tabla ===== */
     function renderTable(nRaw,dRaw,cRaw){
       let n=cleanLines(nRaw).filter(l=>/^\d+$/.test(l));
       let d=cleanLines(dRaw).filter(filterHeaders);
@@ -149,25 +156,20 @@
       for(let i=0;i<rows;i++){const num=n[i]||'',desc=d[i]||'',cant=c[i]||''; if(!desc)continue;
         const tr=document.createElement('tr'); tr.innerHTML=`<td>${num}</td><td>${desc}</td><td>${cant}</td>`; tb.appendChild(tr);}
     }
-
-    /* ===== OCR región (por columna) ===== */
     async function ocrRegion(canvas,x1,x2,y1,y2,lang='spa+eng'){
       const w=canvas.width,h=canvas.height;
       const rx=Math.floor(x1*w),ry=Math.floor(y1*h),rw=Math.floor((x2-x1)*w),rh=Math.floor((y2-y1)*h);
-      const r=createCanvas(rw,rh); r.getContext('2d').drawImage(canvas,rx,ry,rw,rh,0,0,rw,rh);
-
-      // binarización simple por columna (reduce ruido de líneas)
+      const r=createCanvas(rw,rh); r.getContext('2d').drawImage(canvas,rx,ry,rw,rh,0,0,rw,h?rh:rh);
+      // Binarización simple por columna
       const ctx=r.getContext('2d'),img=ctx.getImageData(0,0,rw,rh),d=img.data;
       for(let i=0;i<d.length;i+=4){const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; const v=g>180?255:0; d[i]=d[i+1]=d[i+2]=v;}
       ctx.putImageData(img,0,0);
-
       const {data:{text}}=await Tesseract.recognize(r,lang,{logger:m=>{if(m.status==='recognizing text')debug('OCR '+Math.round(m.progress*100)+'%');}});
       return text.trim();
     }
-
-    /* ===== OCR principal (usa Y_TABLE y columnas) ===== */
     async function detectarTablaYCortarColumnas(c){
-      const [y1,y2]=Y_TABLE;
+      // Rango vertical completo del ROI (0..1) — ya viene acotado por el marco
+      const y1=0.20, y2=0.93; // incluye filas útiles, evita “comentarios”
       const [nx1,nx2]=COLS_PCT.numero,[dx1,dx2]=COLS_PCT.descripcion,[cx1,cx2]=COLS_PCT.cantidad;
       const [tN,tD,tC]=await Promise.all([
         ocrRegion(c,nx1,nx2,y1,y2),
@@ -175,10 +177,10 @@
         ocrRegion(c,cx1,cx2,y1,y2)
       ]);
       renderTable(tN,tD,tC);
-      debug('OCR v4.8.7 completado.');
+      debug('OCR v4.8.8 completado.');
     }
 
-    /* ===== Guardado/descarga de previa ===== */
+    /* ==================== Guardado/descarga de previa ==================== */
     function savePreviewToLocalStorage(canvas){
       try{localStorage.setItem('previa_ocr', canvas.toDataURL('image/jpeg',0.92));}catch(e){console.warn('No se pudo guardar previa',e);}
     }
@@ -188,32 +190,26 @@
     }
     document.getElementById('btnDownload').onclick=downloadPreview;
 
-    /* ===== Pipeline completo ===== */
+    /* ==================== Pipeline completo ==================== */
     async function processCanvas(base){
-      // 1) Rotación fija -90° (calibración cámara trasera horizontal botón vol. arriba)
-      base = drawRotated(base, -90);
-      // 2) Preprocesado gris/contraste
-      base = preprocessSoft(base);
-      // 3) Deskew (endereza) y crop a contenido para centrar
-      base = deskewBySweep(base);
-      base = cropToContent(base, 245);
-      // 4) Sharpen (mejor bordes texto)
-      base = convolveSharpen(base);
-      // 5) Vista previa + guardado
-      putCanvas(base);
-      savePreviewToLocalStorage(base);
-      // 6) OCR columnas
-      await detectarTablaYCortarColumnas(base);
+      base = drawRotated(base, -90);        // Calibración cámara
+      base = preprocessSoft(base);          // Gris + contraste
+      base = deskewBySweep(base);           // Endereza
+      base = cropToContent(base, 245);      // Centra y corta bordes
+      base = convolveSharpen(base);         // Borde texto
+      putCanvas(base);                      // Vista previa
+      savePreviewToLocalStorage(base);      // Guardado
+      await detectarTablaYCortarColumnas(base); // OCR 3 columnas
     }
 
-    /* ===== Limpiar ===== */
+    /* ==================== Limpiar ==================== */
     document.getElementById('btnClear').onclick=()=>{
       const c=document.getElementById('canvas'); c.width=1; c.height=1; c.getContext('2d').clearRect(0,0,1,1);
       document.querySelector('#tablaOCR tbody').innerHTML=''; debug('');
       localStorage.removeItem('previa_ocr');
     };
 
-    /* ===== Subir imagen (fallback si no hay cámara) ===== */
+    /* ==================== Subir imagen (fallback) ==================== */
     document.getElementById('file').addEventListener('change',e=>{
       const f=e.target.files?.[0]; if(!f) return;
       const img=new Image(); const url=URL.createObjectURL(f);
@@ -224,7 +220,7 @@
       }; img.src=url;
     });
 
-    /* ===== Cámara (UI + mapeo exacto del marco verde) ===== */
+    /* ==================== Cámara + Marco ajustable ==================== */
     let stream=null;
     document.getElementById('fileBtn').onclick=openCameraModal;
     function openCameraModal(){ startCamera().catch(()=>document.getElementById('file').click()); }
@@ -238,11 +234,12 @@
         });
       }catch(e){ modal.style.display='none'; throw e; }
       const v=document.getElementById('video'); v.srcObject=stream; await v.play();
+      initCropInteractions(); // habilita arrastre y tiradores
     }
     function stopCamera(){ if(stream){stream.getTracks().forEach(t=>t.stop()); stream=null;} const m=document.getElementById('cameraModal'); if(m) m.style.display='none'; }
 
     function overlayRectToVideoPixels(videoEl, overlayRect){
-      // Mapea el rectángulo del overlay (CSS) a píxeles del sensor (object-fit: cover)
+      // Mapea rectángulo del overlay (CSS) a píxeles del sensor (object-fit: cover)
       const vw=videoEl.videoWidth, vh=videoEl.videoHeight;
       const rectVideo=videoEl.getBoundingClientRect();
       const scale=Math.max(rectVideo.width/vw, rectVideo.height/vh);
@@ -259,8 +256,17 @@
       m=document.createElement('div'); m.id='cameraModal';
       m.innerHTML=`<div class="cam-wrap">
           <video id="video" playsinline></video>
-          <div class="crop-box" id="cropBox"></div>
-          <div class="hint">Alinee la tabla dentro del marco verde (se captura exactamente esa zona)</div>
+          <div class="crop-box" id="cropBox">
+            <div class="handle h-tl" data-role="tl"></div>
+            <div class="handle h-tr" data-role="tr"></div>
+            <div class="handle h-bl" data-role="bl"></div>
+            <div class="handle h-br" data-role="br"></div>
+            <div class="handle h-t"  data-role="t"></div>
+            <div class="handle h-b"  data-role="b"></div>
+            <div class="handle h-l"  data-role="l"></div>
+            <div class="handle h-r"  data-role="r"></div>
+          </div>
+          <div class="hint">Ajuste el marco (tiradores) para delimitar la tabla. Se captura exactamente esa zona.</div>
           <div class="cam-controls">
             <button id="snapBtn">📷 Capturar</button>
             <button id="closeBtn" class="ghost">Cerrar</button>
@@ -271,7 +277,6 @@
       m.querySelector('#snapBtn').onclick=async()=>{
         const v=document.getElementById('video'), box=document.getElementById('cropBox');
         const r=box.getBoundingClientRect(); const {sx,sy,sw,sh}=overlayRectToVideoPixels(v,r);
-        // Captura de región EXACTA dentro del marco
         const full=createCanvas(v.videoWidth,v.videoHeight);
         full.getContext('2d').drawImage(v,0,0,full.width,full.height);
         const roi=createCanvas(sw,sh);
@@ -282,6 +287,74 @@
         finally{ toggleLoading(false); }
       };
       return m;
+    }
+
+    /* -------- Interacciones del marco (arrastre + 8 tiradores) -------- */
+    function initCropInteractions(){
+      const box=document.getElementById('cropBox');
+      const video=document.getElementById('video');
+      const wrap=video.getBoundingClientRect();
+
+      let mode=null; // 'move' o role de handle
+      let startX=0,startY=0,startRect=null;
+
+      // Inicia arrastre/resize
+      function onPointerDown(e){
+        const target=e.target;
+        const rect=box.getBoundingClientRect();
+        startX=e.clientX||e.touches?.[0]?.clientX;
+        startY=e.clientY||e.touches?.[0]?.clientY;
+        startRect={left:rect.left,top:rect.top,width:rect.width,height:rect.height};
+
+        if(target.classList.contains('handle')){ mode=target.dataset.role; }
+        else if(target.id==='cropBox'){ mode='move'; }
+        else { mode=null; return; }
+
+        document.addEventListener('pointermove',onPointerMove);
+        document.addEventListener('pointerup',onPointerUp);
+        e.preventDefault();
+      }
+
+      function clamp(val,min,max){ return Math.max(min,Math.min(max,val)); }
+
+      function onPointerMove(e){
+        if(!mode) return;
+        const x=e.clientX, y=e.clientY;
+        let dx=x-startX, dy=y-startY;
+
+        // límites del área (video)
+        const minW=120, minH=80; // tamaño mínimo razonable
+        let newLeft=startRect.left, newTop=startRect.top, newW=startRect.width, newH=startRect.height;
+
+        if(mode==='move'){
+          newLeft = clamp(startRect.left + dx, wrap.left, wrap.right - startRect.width);
+          newTop  = clamp(startRect.top  + dy, wrap.top,  wrap.bottom - startRect.height);
+        }else{
+          // redimensiona según handle
+          if(mode.includes('l')){ newLeft = clamp(startRect.left + dx, wrap.left, startRect.right - minW); newW = startRect.right - newLeft; }
+          if(mode.includes('r')){ newW = clamp(startRect.width + dx, minW, wrap.right - startRect.left); }
+          if(mode.includes('t')){ newTop  = clamp(startRect.top + dy, wrap.top, startRect.bottom - minH); newH = startRect.bottom - newTop; }
+          if(mode.includes('b')){ newH = clamp(startRect.height + dy, minH, wrap.bottom - startRect.top); }
+        }
+
+        // aplica
+        box.style.left = (newLeft - wrap.left) + 'px'; // relativo a wrap
+        box.style.top  = (newTop  - wrap.top)  + 'px';
+        box.style.width  = newW + 'px';
+        box.style.height = newH + 'px';
+        box.style.transform = ''; // quitar translate para mover con px
+        box.style.position = 'absolute';
+      }
+
+      function onPointerUp(){
+        mode=null;
+        document.removeEventListener('pointermove',onPointerMove);
+        document.removeEventListener('pointerup',onPointerUp);
+      }
+
+      // Soporte pointer (ratón/táctil)
+      box.addEventListener('pointerdown',onPointerDown);
+      for(const h of box.querySelectorAll('.handle')) h.addEventListener('pointerdown',onPointerDown);
     }
   </script>
 </body>
