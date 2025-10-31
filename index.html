@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#ffffff"/>
 
 <!-- ==========================
-     Smart OCR v4.8.2 – Cámara trasera calibrada
+     Smart OCR v4.8.3 – Cámara trasera (botón volumen arriba)
      ========================== -->
 <style>
 :root{
@@ -66,12 +66,6 @@ canvas{border:1px dashed var(--muted);max-width:90%;margin-top:8px}
   position:absolute;left:0;right:0;top:16px;color:#fff;text-align:center;font-size:16px;
   text-shadow:0 1px 3px rgba(0,0,0,.7)
 }
-.flash{animation:flashPulse .25s ease-out 1}
-@keyframes flashPulse{
-  0%{box-shadow:0 0 0 2px rgba(255,255,255,0),0 0 18px rgba(255,255,255,0)}
-  40%{box-shadow:0 0 0 4px rgba(255,255,255,.9),0 0 32px rgba(255,255,255,.9)}
-  100%{box-shadow:0 0 0 2px rgba(255,255,255,0),0 0 18px rgba(255,255,255,0)}
-}
 </style>
 </head>
 <body>
@@ -110,7 +104,6 @@ function drawRotated(src,deg){const r=deg*Math.PI/180,w=src.width,h=src.height,r
  x.translate(out.width/2,out.height/2);x.rotate(r);x.drawImage(src,-w/2,-h/2);return out;}
 function debug(t){document.getElementById('debugInfo').textContent=t||'';}
 
-/* ==== Brillo/contraste adaptativo ==== */
 function preprocessSoft(canvas){
   const ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,canvas.width,canvas.height),d=img.data;
   for(let i=0;i<d.length;i+=4){
@@ -122,13 +115,8 @@ function preprocessSoft(canvas){
   return canvas;
 }
 
-/* ==== OCR ==== */
 const Y_TABLE=[0.25,0.90];
-const COLS_PCT={
-  numero:[0.03,0.14],
-  descripcion:[0.22,0.80],
-  cantidad:[0.86,0.97]
-};
+const COLS_PCT={numero:[0.03,0.14],descripcion:[0.22,0.80],cantidad:[0.86,0.97]};
 function cleanLines(t){return t.split(/\n+/).map(s=>s.replace(/[|•·●]/g,'').trim()).filter(Boolean);}
 function toNumericOrBlank(s){const m=s.replace(/[^\d\-.,]/g,'').match(/\d+([.,]\d+)?/g);return m?m[m.length-1]:'';}
 function filterHeaders(s){return !/^(cliente|moneda|fecha|forma de pago|comentarios|orden|vendedor|ruc)/i.test(s);}
@@ -146,6 +134,7 @@ function renderTable(nRaw,dRaw,cRaw){
     tb.appendChild(tr);
   }
 }
+
 async function ocrRegion(canvas,x1,x2,y1,y2){
   const w=canvas.width,h=canvas.height;
   const rx=Math.floor(x1*w),ry=Math.floor(y1*h);
@@ -155,6 +144,7 @@ async function ocrRegion(canvas,x1,x2,y1,y2){
   const {data:{text}}=await Tesseract.recognize(r,'spa+eng',{logger:m=>{if(m.status==='recognizing text')debug('OCR '+Math.round(m.progress*100)+'%');}});
   return text.trim();
 }
+
 async function detectarTablaYCortarColumnas(c){
   const [y1,y2]=Y_TABLE;
   const [nx1,nx2]=COLS_PCT.numero,[dx1,dx2]=COLS_PCT.descripcion,[cx1,cx2]=COLS_PCT.cantidad;
@@ -167,22 +157,19 @@ async function detectarTablaYCortarColumnas(c){
   debug('Listo.');
 }
 
-/* ==== Procesamiento ==== */
 async function processCanvas(base){
-  // rotación según orientación del sensor
-  if(base.height>base.width){base=drawRotated(base,90);}
+  // Rotación fija 180° (modo horizontal con botón volumen arriba)
+  base=drawRotated(base,180);
   base=preprocessSoft(base);
   putCanvas(base);
   await detectarTablaYCortarColumnas(base);
 }
 
-/* ==== Limpiar ==== */
 document.getElementById('btnClear').onclick=()=>{
   const c=document.getElementById('canvas');c.width=1;c.height=1;c.getContext('2d').clearRect(0,0,1,1);
   document.querySelector('#tablaOCR tbody').innerHTML='';debug('');
 };
 
-/* ==== Cargar archivo ==== */
 document.getElementById('file').addEventListener('change',e=>{
   const f=e.target.files?.[0];if(!f)return;
   const img=new Image();const url=URL.createObjectURL(f);
@@ -242,7 +229,6 @@ function ensureCamUI(){
   m.querySelector('#closeBtn').onclick=()=>stopCamera();
   m.querySelector('#snapBtn').onclick=async()=>{
     const v=document.getElementById('video'),box=document.getElementById('cropBox');
-    box.classList.remove('flash');void box.offsetWidth;box.classList.add('flash');
     const r=box.getBoundingClientRect();
     const {sx,sy,sw,sh}=overlayRectToVideoPixels(v,r);
     const full=createCanvas(v.videoWidth,v.videoHeight);
