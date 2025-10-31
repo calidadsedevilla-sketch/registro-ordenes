@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Calidad Sede Villa – OCR Horizontal v4.8.5</title>
+<title>Calidad Sede Villa – OCR Horizontal</title>
 <meta name="theme-color" content="#ffffff"/>
 
-<!-- Smart OCR v4.8.5 – Rotación -90° (botón volumen arriba) + Deskew + Sharpen -->
+<!-- Smart OCR v4.8.6 – Rotación -90° + Deskew centrado + Sharpen + Guardado previa -->
 <style>
 :root{color-scheme:light dark;--accent:#0b1220;--muted:#777;--bg:#fff;--text:#222;--card:#f7f7f7;}
 @media (prefers-color-scheme:dark){:root{--bg:#0b1220;--text:#f2f2f2;--muted:#aaa;--card:#18212e;}}
 *{box-sizing:border-box}
 body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:var(--text)}
 header{background:var(--card);border-bottom:2px solid var(--accent);padding:10px 15px;text-align:center}
-h1{margin:4px 0;font-size:20px}
-.version{font-size:12px;color:var(--muted)}
+h1{margin:2px 0 0 0;font-size:20px}
+.version{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
 main{padding:15px;text-align:center}
 button{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:10px 16px;margin:5px;cursor:pointer;font-size:15px}
 button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
@@ -41,7 +41,8 @@ canvas{border:1px dashed var(--muted);max-width:90%;margin-top:8px}
 </head>
 <body>
 <header>
-  <h1>Calidad Sede Villa – OCR Horizontal <span class="version">v4.8.5</span></h1>
+  <h1>Calidad Sede Villa – OCR Horizontal</h1>
+  <span class="version">Versión 4.8.6 – Cámara trasera calibrada</span>
 </header>
 
 <main>
@@ -49,11 +50,12 @@ canvas{border:1px dashed var(--muted);max-width:90%;margin-top:8px}
     <button id="fileBtn">📷 Tomar foto / Subir imagen</button>
     <input type="file" id="file" accept="image/*" capture="environment" style="display:none"/>
     <button id="btnClear" class="ghost">🧹 Limpiar</button>
+    <button id="btnDownload" class="ghost" title="Descargar la última vista previa guardada">⬇️ Descargar previa</button>
   </div>
 
-  <h4>Vista previa (corregida)</h4>
+  <h4>Vista previa (alineada)</h4>
   <canvas id="canvas"></canvas>
-  <div class="tip">Toma la foto en horizontal con el botón de volumen hacia arriba. Se corrige inclinación automáticamente.</div>
+  <div class="tip">Alineado automáticamente al eje horizontal (vista real del documento).</div>
   <div class="small" id="debugInfo"></div>
 
   <h4>Tabla OCR generada</h4>
@@ -67,42 +69,33 @@ canvas{border:1px dashed var(--muted);max-width:90%;margin-top:8px}
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 <script>
-/* ===== Utilidades ===== */
+/* ========= Utilidades ========= */
 function toggleLoading(s){document.body.style.cursor=s?"wait":"default";}
 function createCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 function putCanvas(src){const p=document.getElementById('canvas');p.width=src.width;p.height=src.height;p.getContext('2d').drawImage(src,0,0);}
-function drawRotated(src,deg){
-  const r=deg*Math.PI/180,w=src.width,h=src.height,rot=(Math.abs(deg)%180===90);
-  const out=createCanvas(rot?h:w,rot?w:h);const x=out.getContext('2d');
-  x.translate(out.width/2,out.height/2);x.rotate(r);x.drawImage(src,-w/2,-h/2);return out;
-}
+function drawRotated(src,deg){const r=deg*Math.PI/180,w=src.width,h=src.height,rot=(Math.abs(deg)%180===90);
+  const out=createCanvas(rot?h:w,rot?w:h);const x=out.getContext('2d');x.translate(out.width/2,out.height/2);x.rotate(r);x.drawImage(src,-w/2,-h/2);return out;}
 function debug(t){document.getElementById('debugInfo').textContent=t||''}
 
-/* ===== Sharpen + contraste ===== */
+/* ========= Preprocesado (gris + contraste + sharpen) ========= */
+function preprocessSoft(canvas){
+  const ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,canvas.width,canvas.height),d=img.data;
+  for(let i=0;i<d.length;i+=4){let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; g=(g-10)*1.18; g=Math.max(0,Math.min(255,g)); d[i]=d[i+1]=d[i+2]=g;}
+  ctx.putImageData(img,0,0); return canvas;
+}
 function convolveSharpen(canvas){
   const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
   const src=ctx.getImageData(0,0,w,h),d=src.data,out=ctx.createImageData(w,h),o=out.data;
   const k=[0,-1,0,-1,5,-1,0,-1,0];
   for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
     let r=0,g=0,b=0,ki=0;
-    for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
-      const idx=((y+j)*w+(x+i))*4,kval=k[ki++]; r+=d[idx]*kval; g+=d[idx+1]*kval; b+=d[idx+2]*kval;
-    }
+    for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const idx=((y+j)*w+(x+i))*4,kval=k[ki++]; r+=d[idx]*kval; g+=d[idx+1]*kval; b+=d[idx+2]*kval;}
     const di=(y*w+x)*4; o[di]=Math.max(0,Math.min(255,r)); o[di+1]=Math.max(0,Math.min(255,g)); o[di+2]=Math.max(0,Math.min(255,b)); o[di+3]=255;
   }
   ctx.putImageData(out,0,0); return canvas;
 }
-function preprocessSoft(canvas){
-  const ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,canvas.width,canvas.height),d=img.data;
-  for(let i=0;i<d.length;i+=4){
-    let g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-    g=(g-10)*1.18; g=Math.max(0,Math.min(255,g));
-    d[i]=d[i+1]=d[i+2]=g;
-  }
-  ctx.putImageData(img,0,0); return canvas;
-}
 
-/* ===== Deskew (barrido ±7°) ===== */
+/* ========= Deskew centrado ========= */
 function projectionScore(rot){
   const w=rot.width,h=rot.height,ctx=rot.getContext('2d'),img=ctx.getImageData(0,0,w,h).data,sum=new Float32Array(h);
   for(let y=0;y<h;y++){let acc=0; for(let x=0;x<w;x++){acc+=img[(y*w+x)*4]} sum[y]=acc;}
@@ -112,10 +105,38 @@ function projectionScore(rot){
 function deskewBySweep(canvas){
   let best=canvas, bestScore=-1, bestAngle=0;
   for(let a=-7;a<=7;a+=0.5){const r=drawRotated(canvas,a);const s=projectionScore(r);if(s>bestScore){bestScore=s;best=r;bestAngle=a;}}
-  debug(`Rotación fija: -90° | Deskew: ${bestAngle.toFixed(1)}°`); return best;
+  debug(`Rotación fija: -90° | Deskew: ${bestAngle.toFixed(1)}°`);
+  return best;
 }
 
-/* ===== OCR 3 columnas ===== */
+/* Recorte a contenido (elimina bordes negros y centra) */
+function cropToContent(canvas, threshold=250){
+  const w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d'),img=ctx.getImageData(0,0,w,h).data;
+  let top=0,bottom=h-1,left=0,right=w-1,found=false;
+
+  // top
+  for(let y=0;y<h;y++){let rowDark=false;for(let x=0;x<w;x++){const i=(y*w+x)*4; if(img[i]<threshold){rowDark=true;break;}}
+    if(rowDark){top=y;break;}
+  }
+  // bottom
+  for(let y=h-1;y>=0;y--){let rowDark=false;for(let x=0;x<w;x++){const i=(y*w+x)*4; if(img[i]<threshold){rowDark=true;break;}}
+    if(rowDark){bottom=y;break;}
+  }
+  // left
+  for(let x=0;x<w;x++){let colDark=false;for(let y=0;y<h;y++){const i=(y*w+x)*4; if(img[i]<threshold){colDark=true;break;}}
+    if(colDark){left=x;break;}
+  }
+  // right
+  for(let x=w-1;x>=0;x--){let colDark=false;for(let y=0;y<h;y++){const i=(y*w+x)*4; if(img[i]<threshold){colDark=true;break;}}
+    if(colDark){right=x;break;}
+  }
+
+  const cw=Math.max(1,right-left+1), ch=Math.max(1,bottom-top+1);
+  const out=createCanvas(cw,ch); out.getContext('2d').drawImage(canvas,left,top,cw,ch,0,0,cw,ch);
+  return out;
+}
+
+/* ========= OCR 3 columnas ========= */
 const Y_TABLE=[0.24,0.90];
 const COLS_PCT={numero:[0.03,0.14],descripcion:[0.22,0.80],cantidad:[0.86,0.97]};
 function cleanLines(t){return t.split(/\n+/).map(s=>s.replace(/[|•·●]/g,'').trim()).filter(Boolean);}
@@ -141,34 +162,57 @@ async function detectarTablaYCortarColumnas(c){
   renderTable(tN,tD,tC); debug('Listo.');
 }
 
-/* ===== Pipeline ===== */
+/* ========= Guardado previa ========= */
+function savePreviewToLocalStorage(canvas){
+  try{
+    const dataURL = canvas.toDataURL('image/jpeg', 0.92);
+    localStorage.setItem('previa_ocr_v486', dataURL);
+  }catch(e){ console.warn('No se pudo guardar en localStorage', e); }
+}
+function downloadPreview(){
+  const dataURL = localStorage.getItem('previa_ocr_v486');
+  if(!dataURL){alert('No hay previa guardada aún.');return;}
+  const a=document.createElement('a'); a.href=dataURL; a.download='previa_ocr.jpg'; a.click();
+}
+document.getElementById('btnDownload').onclick=downloadPreview;
+
+/* ========= Pipeline completo ========= */
 async function processCanvas(base){
-  // Calibración fija para tu sentido de toma: ROTAR -90° (270°)
+  // 1) Calibración fija para tu sentido de toma: ROTAR -90°
   base = drawRotated(base, -90);
+  // 2) Preprocesado
   base = preprocessSoft(base);
+  // 3) Deskew (endereza) y centra
   base = deskewBySweep(base);
+  base = cropToContent(base, 245);
+  // 4) Sharpen
   base = convolveSharpen(base);
+  // 5) Vista previa y guardado local
   putCanvas(base);
+  savePreviewToLocalStorage(base);
+  // 6) OCR
   await detectarTablaYCortarColumnas(base);
 }
 
-/* ===== Limpiar ===== */
+/* ========= Limpiar ========= */
 document.getElementById('btnClear').onclick=()=>{
   const c=document.getElementById('canvas'); c.width=1; c.height=1; c.getContext('2d').clearRect(0,0,1,1);
   document.querySelector('#tablaOCR tbody').innerHTML=''; debug('');
+  localStorage.removeItem('previa_ocr_v486');
 };
 
-/* ===== Subir archivo ===== */
+/* ========= Subir archivo ========= */
 document.getElementById('file').addEventListener('change',e=>{
   const f=e.target.files?.[0]; if(!f) return;
   const img=new Image(); const url=URL.createObjectURL(f);
-  img.onload=async()=>{const c=createCanvas(img.naturalWidth||img.width,img.naturalHeight||img.height);
+  img.onload=async()=>{
+    const c=createCanvas(img.naturalWidth||img.width,img.naturalHeight||img.height);
     c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
     toggleLoading(true); try{await processCanvas(c);}catch(err){alert('Error procesando imagen.');console.error(err);} finally{toggleLoading(false);}
   }; img.src=url;
 });
 
-/* ===== Cámara ===== */
+/* ========= Cámara ========= */
 let stream=null;
 document.getElementById('fileBtn').onclick=openCameraModal;
 function openCameraModal(){ startCamera().catch(()=>document.getElementById('file').click()); }
