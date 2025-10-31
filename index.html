@@ -137,7 +137,8 @@ function cropToContent(canvas, threshold=250){
 }
 
 /* ========= OCR 3 columnas ========= */
-const Y_TABLE=[0.24,0.90];
+// v4.8.7 – Ajuste fino del recorte vertical
+const Y_TABLE=[0.20,0.93];
 const COLS_PCT={numero:[0.03,0.14],descripcion:[0.22,0.80],cantidad:[0.86,0.97]};
 function cleanLines(t){return t.split(/\n+/).map(s=>s.replace(/[|•·●]/g,'').trim()).filter(Boolean);}
 function toNumericOrBlank(s){const m=s.replace(/[^\d\-.,]/g,'').match(/\d+([.,]\d+)?/g);return m?m[m.length-1]:'';}
@@ -156,10 +157,31 @@ async function ocrRegion(canvas,x1,x2,y1,y2){
   const {data:{text}}=await Tesseract.recognize(r,'spa+eng',{logger:m=>{if(m.status==='recognizing text')debug('OCR '+Math.round(m.progress*100)+'%');}});
   return text.trim();
 }
+// v4.8.7 – OCR refinado con mejora por columnas y detección de líneas
 async function detectarTablaYCortarColumnas(c){
-  const [y1,y2]=Y_TABLE; const [nx1,nx2]=COLS_PCT.numero,[dx1,dx2]=COLS_PCT.descripcion,[cx1,cx2]=COLS_PCT.cantidad;
-  const [tN,tD,tC]=await Promise.all([ocrRegion(c,nx1,nx2,y1,y2),ocrRegion(c,dx1,dx2,y1,y2),ocrRegion(c,cx1,cx2,y1,y2)]);
-  renderTable(tN,tD,tC); debug('Listo.');
+  const ctx = c.getContext('2d');
+  const imgData = ctx.getImageData(0,0,c.width,c.height);
+  const data = imgData.data;
+  
+  // Binarización simple para aumentar contraste
+  for(let i=0;i<data.length;i+=4){
+    const g = 0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+    const v = g>180 ? 255 : 0;
+    data[i]=data[i+1]=data[i+2]=v;
+  }
+  ctx.putImageData(imgData,0,0);
+  
+  // Recorte de columnas
+  const [y1,y2]=Y_TABLE;
+  const [nx1,nx2]=COLS_PCT.numero,[dx1,dx2]=COLS_PCT.descripcion,[cx1,cx2]=COLS_PCT.cantidad;
+
+  // OCR por columna
+  const tN = await ocrRegion(c,nx1,nx2,y1,y2);
+  const tD = await ocrRegion(c,dx1,dx2,y1,y2);
+  const tC = await ocrRegion(c,cx1,cx2,y1,y2);
+
+  renderTable(tN,tD,tC);
+  debug("OCR completado con recorte centrado v4.8.7");
 }
 
 /* ========= Guardado previa ========= */
