@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OCR – Órdenes de Venta (Smart v4.9.1)</title>
+<title>OCR – Órdenes de Venta (Smart v4.9.2)</title>
 <style>
 :root{
   --accent:#00ff88;
+  --accent-drag:#3aff9f;
   --bg:#0b1220;
   --text:#f5f5f5;
   --muted:#aaa;
@@ -59,6 +60,7 @@ video{
   top:10%;
   left:4%;
   box-sizing:border-box;
+  transition:border-color 0.2s ease;
 }
 #handle{
   position:absolute;
@@ -68,6 +70,7 @@ video{
   border-radius:5px;
   cursor:ns-resize;
   transform:translateX(-50%);
+  transition:background 0.2s ease;
 }
 #canvasPreview{
   border:1px dashed #777;
@@ -93,8 +96,8 @@ footer{margin:20px;font-size:12px;color:var(--muted);}
 <body>
 
 <header>
-  <h2>OCR – Órdenes de Venta (Smart v4.9.1)</h2>
-  <div>Versión 4.9.1 – Captura centrada, 2 columnas (Descripción / Cantidad)</div>
+  <h2>OCR – Órdenes de Venta (Smart v4.9.2)</h2>
+  <div>Versión 4.9.2 – Marco inferior ajustable + OCR 2 columnas</div>
 </header>
 
 <main>
@@ -127,14 +130,14 @@ footer{margin:20px;font-size:12px;color:var(--muted);}
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 <script>
-// ================= CONFIGURACIÓN INICIAL =================
+// ================= CONFIGURACIÓN DE CÁMARA =================
 const video=document.getElementById('video');
 const frame=document.getElementById('frame');
 const handle=document.getElementById('handle');
 const canvasPrev=document.getElementById('canvasPreview');
-let stream,frameHeight=0.8; // proporción inicial
+let stream,frameHeight=0.8,resizing=false,startY=0;
 
-// === Cámara trasera (horizontal) ===
+// Iniciar cámara trasera horizontal
 async function startCamera(){
   try{
     stream=await navigator.mediaDevices.getUserMedia({
@@ -142,15 +145,18 @@ async function startCamera(){
       audio:false
     });
     video.srcObject=stream;
-  }catch(e){
-    alert("No se pudo acceder a la cámara.");
-  }
+  }catch(e){alert("No se pudo acceder a la cámara.");}
 }
 
-// === Redimensionar marco inferior ===
-let resizing=false,startY=0;
-handle.addEventListener('mousedown',e=>{resizing=true;startY=e.clientY;});
-window.addEventListener('mouseup',()=>resizing=false);
+// Tirador inferior siempre visible (gris → verde al arrastrar)
+handle.addEventListener('mousedown',e=>{
+  resizing=true;startY=e.clientY;
+  handle.style.background=varAccent('--accent-drag');
+});
+window.addEventListener('mouseup',()=>{
+  resizing=false;
+  handle.style.background='rgba(200,200,200,0.7)';
+});
 window.addEventListener('mousemove',e=>{
   if(!resizing)return;
   const delta=(e.clientY-startY)/window.innerHeight;
@@ -159,7 +165,7 @@ window.addEventListener('mousemove',e=>{
   startY=e.clientY;
 });
 
-// === Capturar el área exacta dentro del marco verde ===
+// === Captura de área dentro del marco ===
 async function captureImage(){
   const w=video.videoWidth,h=video.videoHeight;
   if(!w||!h){alert("Cámara no lista.");return;}
@@ -168,18 +174,17 @@ async function captureImage(){
   c.width=w;c.height=h;
   ctx.drawImage(video,0,0,w,h);
 
+  // Recorte proporcional exacto al marco verde
   const fx=0.04*w;
   const fy=(1-frameHeight)/2*h;
   const fw=0.92*w;
   const fh=frameHeight*h;
   const rec=ctx.getImageData(fx,fy,fw,fh);
 
-  // recorte exacto
   const crop=document.createElement('canvas');
   crop.width=fw;crop.height=fh;
   crop.getContext('2d').putImageData(rec,0,0);
 
-  // centrar horizontalmente en vista previa
   canvasPrev.width=fw;canvasPrev.height=fh;
   canvasPrev.getContext('2d').drawImage(crop,0,0);
 
@@ -187,7 +192,7 @@ async function captureImage(){
   await procesarOCR(crop);
 }
 
-// === OCR 2 columnas (Descripción y Cantidad) ===
+// === OCR 2 columnas: Descripción + Cantidad ===
 async function procesarOCR(canvas){
   const {data:{text}}=await Tesseract.recognize(canvas,'spa',{logger:m=>console.log(m.status)});
   const lineas=text.split('\n').map(l=>l.trim()).filter(Boolean);
@@ -225,8 +230,11 @@ document.getElementById('btnClear').onclick=()=>{
   localStorage.removeItem('previa_ocr');
 };
 
-// === Detener cámara al cerrar página ===
+// === Cerrar cámara al salir ===
 window.addEventListener('beforeunload',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());});
+
+// Función auxiliar
+function varAccent(v){return getComputedStyle(document.documentElement).getPropertyValue(v);}
 </script>
 </body>
 </html>
