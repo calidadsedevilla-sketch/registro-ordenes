@@ -1,11 +1,10 @@
 {
-  "name": "Calidad Sede Villa - OCR OV",
-  "short_name": "CSV OCR",
-  "description": "Captura datos de órdenes de venta mediante OCR. Solo N°, Descripción y Cantidad.",
-  "start_url": "./index.html",
+  "name": "Calidad Sede Villa – Smart OCR v4.2",
+  "short_name": "OCR v4.2",
+  "start_url": "./",
   "display": "standalone",
-  "background_color": "#0e141b",
-  "theme_color": "#4cc9f0",
+  "background_color": "#0b1220",
+  "theme_color": "#0e141b",
   "icons": [
     {
       "src": "icons/icon-192.png",
